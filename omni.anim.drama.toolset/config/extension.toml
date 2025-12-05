@@ -1,34 +1,43 @@
-# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
-# SPDX-License-Identifier: LicenseRef-NvidiaProprietary
-#
-# NVIDIA CORPORATION, its affiliates and licensors retain all intellectual
-# property and proprietary rights in and to this material, related
-# documentation and any modifications thereto. Any use, reproduction,
-# disclosure or distribution of this material and related documentation
-# without an express license agreement from NVIDIA CORPORATION or
-# its affiliates is strictly prohibited.
+# SPDX-FileCopyrightText: Copyright (c) 2024 Bilibili Animation Team
+# SPDX-License-Identifier: MIT
 
 [package]
-title = "omni.anim.drama.toolset"
-version = "0.1.0"  # Semantic Versioning is used: https://semver.org/
-description = "The simplest python UI extension example. Use it as a starting point for your extensions."
-category = "Example"  # How to categorize this in the Extension Manager
+title = "Anim Drama Toolset"
+version = "0.1.0"
+description = """
+动画制作工具集，提供以下功能：
+- Load Manager: 角色加载/卸载管理，支持批量操作
+- Curves Width: BasisCurves 宽度调整，支持实时预览
+- UV Transfer: UV 数据传输，支持重定位安全输出
+"""
+category = "Animation"
 changelog = "docs/CHANGELOG.md"
-icon = "data/icon.png"  # Icon to show in the Extension Manager
-keywords = ["kit", "example", "extension", "python", "ui"]  # Search keywords for the Extension Manager
-preview_image = "data/preview.png"  # Preview to show in the Extension Manager
-readme  = "docs/README.md"  # Path (relative to the root) or content of readme markdown file for UI
-repository = "https://github.com/NVIDIA-Omniverse/kit-app-template"  # URL of the extension source repository
+icon = "data/icon.png"
+keywords = ["animation", "curves", "uv", "load", "toolset", "drama"]
+preview_image = "data/preview.png"
+readme = "docs/README.md"
+repository = "https://github.com/bilibili/omniverse-anim-drama-toolset"
+authors = ["Bilibili Animation Team"]
 
 
 [dependencies]
+# Kit 基础依赖
 "omni.kit.uiapp" = {}
+# USD 操作
+"omni.usd" = {}
+# UI 组件
+"omni.ui" = {}
+# 文件选择对话框（可选）
+"omni.kit.window.filepicker" = {optional = true}
 
 
 [settings]
+# 窗口默认显示设置
+exts."omni.anim.drama.toolset".window.visible = true
 
 
-[[python.module]]  # Main python module this extension provides, it will be publicly available as "import omni.anim.drama.toolset"
+[[python.module]]
+# 主 Python 模块
 name = "omni.anim.drama.toolset"
 
 
@@ -42,8 +51,9 @@ pages = [
 [[test]]
 dependencies = [
     "omni.kit.test",
-    "omni.kit.ui_test"  # UI testing extension
+    "omni.kit.ui_test"
 ]
 
 args = [
+    "--no-window"
 ]
