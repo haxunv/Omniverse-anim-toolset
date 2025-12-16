@@ -9,14 +9,15 @@ UV 传输 ViewModel
     - 设置源曲线和目标根路径
     - 配置 Primvar 名称和输出路径
     - 执行 UV 烘焙操作
+    - 批量处理多对 Source-Target
 """
 
 import os
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Dict
 
 from .base_viewmodel import BaseViewModel
 from ..core.stage_utils import get_stage, get_selection_paths
-from ..core.uv_transfer import bake_uv_to_file
+from ..core.uv_transfer import bake_uv_to_file, bake_uv_to_standalone_file
 
 
 class UVTransferViewModel(BaseViewModel):
@@ -31,6 +32,7 @@ class UVTransferViewModel(BaseViewModel):
         target_root: 目标根路径或 BasisCurves
         primvar_name: Primvar 名称
         output_path: 输出文件路径
+        pairs_list: 批量处理的 Source-Target 对列表
     """
 
     def __init__(self):
@@ -41,6 +43,9 @@ class UVTransferViewModel(BaseViewModel):
         self._target_root: str = ""
         self._primvar_name: str = "st1"
         self._output_path: str = ""
+
+        # 批量处理列表: [{"source": str, "target": str}, ...]
+        self._pairs_list: List[Dict[str, str]] = []
 
         # 数据变更回调
         self._data_changed_callbacks = []
@@ -92,6 +97,16 @@ class UVTransferViewModel(BaseViewModel):
         """设置输出文件路径。"""
         self._output_path = value
         self._notify_data_changed()
+
+    @property
+    def pairs_list(self) -> List[Dict[str, str]]:
+        """获取批量处理列表。"""
+        return self._pairs_list
+
+    @property
+    def pairs_count(self) -> int:
+        """获取批量处理列表中的对数。"""
+        return len(self._pairs_list)
 
     # =========================================================================
     # 数据变更通知
@@ -249,6 +264,198 @@ class UVTransferViewModel(BaseViewModel):
 
         return success, message
 
+    def run_bake_standalone(self) -> Tuple[bool, str]:
+        """
+        执行独立 UV 烘焙操作（生成不依赖原文件的独立文件）。
+
+        Returns:
+            Tuple[bool, str]: (是否成功, 消息)
+        """
+        # 验证输入
+        if not self._source_curve:
+            msg = "Please set Source first."
+            self.log(msg)
+            return False, msg
+
+        if not self._target_root:
+            msg = "Please set Target first."
+            self.log(msg)
+            return False, msg
+
+        # 确保有输出路径
+        output = self._output_path
+        if not output:
+            output = self.get_default_output_path().replace("final_hair", "standalone_hair")
+            self._output_path = output
+            self._notify_data_changed()
+
+        # 确保正确的文件扩展名
+        root, ext = os.path.splitext(output)
+        if ext.lower() not in (".usda", ".usd", ".usdc"):
+            output = root + ".usda"
+            self._output_path = output
+            self._notify_data_changed()
+
+        # 执行独立烘焙
+        success, message = bake_uv_to_standalone_file(
+            source_curve_path=self._source_curve,
+            target_root_path=self._target_root,
+            primvar_name=self._primvar_name,
+            output_file_path=output,
+            on_log=self.log
+        )
+
+        return success, message
+
+    # =========================================================================
+    # 批量处理：列表管理
+    # =========================================================================
+
+    def add_current_pair(self) -> bool:
+        """
+        将当前 Source-Target 对添加到批量处理列表。
+
+        Returns:
+            bool: 是否成功添加
+        """
+        if not self._source_curve:
+            self.log("Please set Source first.")
+            return False
+
+        if not self._target_root:
+            self.log("Please set Target first.")
+            return False
+
+        # 检查是否已存在
+        for pair in self._pairs_list:
+            if pair["source"] == self._source_curve and pair["target"] == self._target_root:
+                self.log("This pair already exists in the list.")
+                return False
+
+        # 添加到列表
+        self._pairs_list.append({
+            "source": self._source_curve,
+            "target": self._target_root
+        })
+
+        self.log(f"Added pair #{len(self._pairs_list)}: {self._source_curve} → {self._target_root}")
+        self._notify_data_changed()
+        return True
+
+    def remove_pair(self, index: int) -> bool:
+        """
+        从批量处理列表中移除指定索引的对。
+
+        Args:
+            index: 要移除的对的索引
+
+        Returns:
+            bool: 是否成功移除
+        """
+        if 0 <= index < len(self._pairs_list):
+            removed = self._pairs_list.pop(index)
+            self.log(f"Removed pair: {removed['source']} → {removed['target']}")
+            self._notify_data_changed()
+            return True
+        return False
+
+    def clear_pairs_list(self) -> None:
+        """清空批量处理列表。"""
+        self._pairs_list.clear()
+        self.log("Pairs list cleared.")
+        self._notify_data_changed()
+
+    def get_pairs_display_list(self) -> List[str]:
+        """
+        获取用于显示的对列表字符串。
+
+        Returns:
+            List[str]: 格式化的字符串列表
+        """
+        result = []
+        for i, pair in enumerate(self._pairs_list):
+            # 简化路径显示
+            src_name = pair["source"].split("/")[-1] if "/" in pair["source"] else pair["source"]
+            tgt_name = pair["target"].split("/")[-1] if "/" in pair["target"] else pair["target"]
+            result.append(f"{i+1}. {src_name} → {tgt_name}")
+        return result
+
+    # =========================================================================
+    # 批量处理：执行烘焙
+    # =========================================================================
+
+    def run_batch_bake(self, standalone: bool = False) -> Tuple[int, int, List[str]]:
+        """
+        批量执行 UV 烘焙。
+
+        Args:
+            standalone: 是否生成独立文件
+
+        Returns:
+            Tuple[int, int, List[str]]: (成功数, 失败数, 错误消息列表)
+        """
+        if not self._pairs_list:
+            self.log("No pairs in the list. Add pairs first.")
+            return 0, 0, ["No pairs in the list"]
+
+        # 确定输出目录
+        output_dir = self._output_path
+        if output_dir:
+            # 如果是文件路径，取其目录
+            if os.path.splitext(output_dir)[1]:
+                output_dir = os.path.dirname(output_dir)
+        if not output_dir:
+            output_dir = self.get_stage_base_dir()
+
+        self.log(f"═══ Batch Bake Start ═══")
+        self.log(f"Total pairs: {len(self._pairs_list)}")
+        self.log(f"Output directory: {output_dir}")
+        self.log(f"Mode: {'Standalone' if standalone else 'Reloc-safe'}")
+
+        success_count = 0
+        fail_count = 0
+        errors = []
+
+        bake_func = bake_uv_to_standalone_file if standalone else bake_uv_to_file
+
+        for i, pair in enumerate(self._pairs_list):
+            source = pair["source"]
+            target = pair["target"]
+
+            # 生成输出文件名
+            target_name = target.split("/")[-1] if "/" in target else target
+            output_file = os.path.join(
+                output_dir,
+                f"{target_name}_uv.usda"
+            ).replace("\\", "/")
+
+            self.log(f"[{i+1}/{len(self._pairs_list)}] Processing: {target_name}")
+
+            try:
+                success, message = bake_func(
+                    source_curve_path=source,
+                    target_root_path=target,
+                    primvar_name=self._primvar_name,
+                    output_file_path=output_file,
+                    on_log=self.log
+                )
+
+                if success:
+                    success_count += 1
+                else:
+                    fail_count += 1
+                    errors.append(f"Pair {i+1}: {message}")
+
+            except Exception as e:
+                fail_count += 1
+                errors.append(f"Pair {i+1}: {str(e)}")
+                self.log(f"Error: {e}")
+
+        self.log(f"═══ Batch Bake Complete ═══")
+        self.log(f"Success: {success_count}, Failed: {fail_count}")
+
+        return success_count, fail_count, errors
+
     # =========================================================================
     # 验证
     # =========================================================================
@@ -278,4 +485,5 @@ class UVTransferViewModel(BaseViewModel):
         self._source_curve = ""
         self._target_root = ""
         self._output_path = ""
+        self._pairs_list.clear()
         super().dispose()

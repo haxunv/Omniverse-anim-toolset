@@ -13,10 +13,12 @@ from .styles import Sizes
 from .load_manager_view import LoadManagerView
 from .curves_width_view import CurvesWidthView
 from .uv_transfer_view import UVTransferView
+from .light_link_view import LightLinkView
 from ..viewmodels import (
     LoadManagerViewModel,
     CurvesWidthViewModel,
     UVTransferViewModel,
+    LightLinkViewModel,
 )
 
 
@@ -37,11 +39,13 @@ class MainWindow:
         self._load_manager_vm: Optional[LoadManagerViewModel] = None
         self._curves_width_vm: Optional[CurvesWidthViewModel] = None
         self._uv_transfer_vm: Optional[UVTransferViewModel] = None
+        self._light_link_vm: Optional[LightLinkViewModel] = None
 
         # Views
         self._load_manager_view: Optional[LoadManagerView] = None
         self._curves_width_view: Optional[CurvesWidthView] = None
         self._uv_transfer_view: Optional[UVTransferView] = None
+        self._light_link_view: Optional[LightLinkView] = None
 
         # 当前激活的标签索引
         self._current_tab = 0
@@ -68,6 +72,7 @@ class MainWindow:
         self._load_manager_vm = LoadManagerViewModel()
         self._curves_width_vm = CurvesWidthViewModel()
         self._uv_transfer_vm = UVTransferViewModel()
+        self._light_link_vm = LightLinkViewModel()
 
         # 构建 UI
         with self._window.frame:
@@ -94,6 +99,12 @@ class MainWindow:
                         clicked_fn=lambda: self._switch_tab(2),
                     )
                     self._tab_buttons.append(btn3)
+
+                    btn4 = ui.Button(
+                        "Light Link",
+                        clicked_fn=lambda: self._switch_tab(3),
+                    )
+                    self._tab_buttons.append(btn4)
 
                 ui.Separator(height=2)
 
@@ -149,6 +160,23 @@ class MainWindow:
                                 )
                                 self._uv_transfer_view.build()
                     self._tab_frames.append(self._frame3)
+
+                    # Light Link 内容
+                    self._frame4 = ui.Frame(visible=False)
+                    with self._frame4:
+                        with ui.ScrollingFrame(
+                            horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_OFF,
+                            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED
+                        ):
+                            with ui.VStack(
+                                margin=Sizes.MARGIN_MEDIUM,
+                                spacing=Sizes.SPACING_MEDIUM
+                            ):
+                                self._light_link_view = LightLinkView(
+                                    self._light_link_vm
+                                )
+                                self._light_link_view.build()
+                    self._tab_frames.append(self._frame4)
 
     def _switch_tab(self, index: int) -> None:
         """切换标签页。"""
@@ -223,6 +251,10 @@ class MainWindow:
             self._uv_transfer_view.dispose()
             self._uv_transfer_view = None
 
+        if self._light_link_view:
+            self._light_link_view.dispose()
+            self._light_link_view = None
+
         # 清理 ViewModels
         if self._load_manager_vm:
             self._load_manager_vm.dispose()
@@ -235,6 +267,10 @@ class MainWindow:
         if self._uv_transfer_vm:
             self._uv_transfer_vm.dispose()
             self._uv_transfer_vm = None
+
+        if self._light_link_vm:
+            self._light_link_vm.dispose()
+            self._light_link_vm = None
 
         # 清理窗口
         if self._window:

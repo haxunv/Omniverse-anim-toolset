@@ -499,3 +499,294 @@ def bake_uv_to_file(
         import traceback
         traceback.print_exc()
         return False, f"Failed: {e}"
+
+
+# =============================================================================
+# 独立文件导出（无依赖）
+# =============================================================================
+
+def bake_uv_to_standalone_file(
+    source_curve_path: str,
+    target_root_path: str,
+    primvar_name: str,
+    output_file_path: str,
+    on_log: callable = None
+) -> Tuple[bool, str]:
+    """
+    将 UV 数据从源曲线烘焙到目标曲线，输出独立文件（不依赖原文件）。
+
+    与 bake_uv_to_file 不同，此函数会完整复制目标曲线的几何数据，
+    生成一个可以独立存在的 USD 文件。
+
+    Args:
+        source_curve_path: 源 BasisCurves 路径（包含 UV）
+        target_root_path: 目标根路径或 BasisCurves
+        primvar_name: Primvar 名称（如 "st1"）
+        output_file_path: 输出文件路径
+        on_log: 日志回调函数
+
+    Returns:
+        Tuple[bool, str]: (是否成功, 消息)
+    """
+    def log(msg):
+        if on_log:
+            on_log(msg)
+
+    stage = get_stage()
+    if not stage:
+        return False, "No open Stage."
+
+    # 验证输入
+    if not source_curve_path or not target_root_path:
+        return False, "Please set Source and Target first."
+
+    # 确保输出路径有正确的扩展名
+    if not output_file_path:
+        base_dir = os.path.dirname(stage.GetRootLayer().realPath or "") or os.path.expanduser("~")
+        output_file_path = os.path.join(base_dir, "standalone_hair.usda").replace("\\", "/")
+    else:
+        root, ext = os.path.splitext(output_file_path)
+        if ext.lower() not in (".usda", ".usd", ".usdc"):
+            output_file_path = root + ".usda"
+
+    try:
+        # === 读取源 UV ===
+        src_prim = stage.GetPrimAtPath(source_curve_path)
+        if not src_prim or not src_prim.IsA(UsdGeom.BasisCurves):
+            return False, "Source is not a BasisCurves."
+
+        api = UsdGeom.PrimvarsAPI(src_prim)
+        pv = (
+            api.GetPrimvar(primvar_name) or
+            api.GetPrimvar("st") or
+            api.GetPrimvar("st0")
+        )
+
+        if not pv or not pv.HasValue():
+            return False, f"No primvars:{primvar_name}/st/st0 on source."
+
+        src_vals, src_interp = expand_primvar(pv)
+        if src_vals is None or len(src_vals) == 0:
+            return False, "Source UV is empty."
+
+        log(f"Source UV: interp='{src_interp}', count={len(src_vals)}")
+
+        # === 收集目标曲线 ===
+        curves = collect_curves_under(target_root_path)
+        if not curves:
+            return False, "No BasisCurves found under / at target."
+
+        log(f"Target curves: {len(curves)}")
+
+        # 计算每条曲线需要的元素数量
+        needs = []
+        total_need = 0
+        for p in curves:
+            n = need_counts_robust(UsdGeom.BasisCurves(p), src_interp)
+            needs.append((p, n))  # 保存 prim 而不是路径
+            total_need += max(0, n)
+
+        log(f"Total need: {total_need}, source elems: {len(src_vals)}")
+
+        # === 创建独立输出 Stage ===
+        final = Usd.Stage.CreateInMemory()
+
+        # 复制 Stage 元数据
+        try:
+            up = UsdGeom.GetStageUpAxis(stage)
+            if up:
+                UsdGeom.SetStageUpAxis(final, up)
+            mpu = UsdGeom.GetStageMetersPerUnit(stage)
+            if mpu:
+                UsdGeom.SetStageMetersPerUnit(final, mpu)
+            tps = stage.GetTimeCodesPerSecond()
+            if tps:
+                final.SetTimeCodesPerSecond(tps)
+                final.SetFramesPerSecond(stage.GetFramesPerSecond())
+        except Exception:
+            pass
+
+        # 创建根节点
+        final_root = final.DefinePrim(INTERNAL_ROOT, "Xform")
+        final.SetDefaultPrim(final_root)
+
+        # === 复制曲线几何数据并写入 UV ===
+        vtname = Sdf.ValueTypeNames.TexCoord2fArray
+        cursor = 0
+        wrote = 0
+        wrote_elems = 0
+        skipped = 0
+
+        for src_curve_prim, need in needs:
+            # 计算输出路径
+            orig_path = src_curve_prim.GetPath().pathString
+            final_p = map_to_internal_path(orig_path, target_root_path)
+
+            # 创建新的 BasisCurves prim（不是 Override，而是完整定义）
+            new_curve = UsdGeom.BasisCurves.Define(final, final_p)
+
+            # 复制几何属性
+            src_bc = UsdGeom.BasisCurves(src_curve_prim)
+            _copy_basis_curves_data(src_bc, new_curve, log)
+
+            if need <= 0:
+                if FORCE_ATTR_ON_EMPTY:
+                    pv_out = UsdGeom.PrimvarsAPI(new_curve).CreatePrimvar(
+                        primvar_name, vtname, src_interp or "vertex"
+                    )
+                    pv_out.Set(Vt.Vec2fArray())
+                    log(f"[Standalone] {final_p.pathString} need=0 → empty {primvar_name}")
+                    wrote += 1
+                else:
+                    log(f"[Skip] {final_p.pathString} need=0")
+                    skipped += 1
+                continue
+
+            remaining = len(src_vals) - cursor
+
+            if remaining < need:
+                if not PAD_SHORTAGE or remaining <= 0:
+                    log(f"[Stop] not enough data: {final_p.pathString} need {need}, remain {remaining}")
+                    break
+
+                # 填充不足的数据
+                slice_vals = Vt.Vec2fArray(need)
+                for i in range(min(remaining, need)):
+                    slice_vals[i] = src_vals[cursor + i]
+
+                if PAD_MODE == "repeat":
+                    last = src_vals[cursor + remaining - 1]
+                    for i in range(remaining, need):
+                        slice_vals[i] = last
+                elif PAD_MODE == "wrap":
+                    for i in range(remaining, need):
+                        slice_vals[i] = src_vals[cursor + (i % remaining)]
+                else:  # zero
+                    for i in range(remaining, need):
+                        slice_vals[i] = Gf.Vec2f(0.0, 0.0)
+
+                cursor += remaining
+                log(f"[Pad] {final_p.pathString} need {need}, remain {remaining} → fill {need-remaining} ({PAD_MODE})")
+            else:
+                slice_vals = Vt.Vec2fArray(need)
+                for i in range(need):
+                    slice_vals[i] = src_vals[cursor + i]
+                cursor += need
+
+            # 写入 UV
+            pv_out = UsdGeom.PrimvarsAPI(new_curve).CreatePrimvar(
+                primvar_name, vtname, src_interp or "vertex"
+            )
+            pv_out.Set(slice_vals)
+            wrote += 1
+            wrote_elems += need
+
+        # 导出文件
+        final.GetRootLayer().Export(output_file_path)
+
+        summary = f"Wrote {wrote} curves (standalone), elems {wrote_elems}; skipped {skipped}; remain {len(src_vals)-cursor}"
+        log(f"✅ Saved (standalone): {output_file_path}")
+        log(summary)
+
+        return True, f"Saved standalone to {output_file_path}"
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return False, f"Failed: {e}"
+
+
+def _copy_basis_curves_data(src: UsdGeom.BasisCurves, dst: UsdGeom.BasisCurves, log=None):
+    """
+    复制 BasisCurves 的几何数据。
+
+    Args:
+        src: 源 BasisCurves
+        dst: 目标 BasisCurves
+        log: 日志函数
+    """
+    try:
+        # 复制 Points（顶点位置）
+        points = src.GetPointsAttr().Get(DEFAULT_TIMECODE)
+        if points is None:
+            points = src.GetPointsAttr().Get()
+        if points is None:
+            points = get_first_time_sample(src.GetPointsAttr())
+        if points is not None:
+            dst.GetPointsAttr().Set(points)
+
+        # 复制 CurveVertexCounts（每条曲线的顶点数）
+        counts = src.GetCurveVertexCountsAttr().Get(DEFAULT_TIMECODE)
+        if counts is None:
+            counts = src.GetCurveVertexCountsAttr().Get()
+        if counts is None:
+            counts = get_first_time_sample(src.GetCurveVertexCountsAttr())
+        if counts is not None:
+            dst.GetCurveVertexCountsAttr().Set(counts)
+
+        # 复制 Type（曲线类型：linear, cubic 等）
+        curve_type = src.GetTypeAttr().Get()
+        if curve_type:
+            dst.GetTypeAttr().Set(curve_type)
+
+        # 复制 Basis（基函数：bezier, bspline, catmullRom）
+        basis = src.GetBasisAttr().Get()
+        if basis:
+            dst.GetBasisAttr().Set(basis)
+
+        # 复制 Wrap（是否闭合：nonperiodic, periodic）
+        wrap = src.GetWrapAttr().Get()
+        if wrap:
+            dst.GetWrapAttr().Set(wrap)
+
+        # 复制 Widths（曲线宽度）
+        widths = src.GetWidthsAttr().Get(DEFAULT_TIMECODE)
+        if widths is None:
+            widths = src.GetWidthsAttr().Get()
+        if widths is not None and len(widths) > 0:
+            dst.GetWidthsAttr().Set(widths)
+            # 复制 widths 的插值模式
+            widths_interp = src.GetWidthsInterpolation()
+            if widths_interp:
+                dst.SetWidthsInterpolation(widths_interp)
+
+        # 复制 Normals（法线，如果有）
+        normals = src.GetNormalsAttr().Get(DEFAULT_TIMECODE)
+        if normals is None:
+            normals = src.GetNormalsAttr().Get()
+        if normals is not None and len(normals) > 0:
+            dst.GetNormalsAttr().Set(normals)
+
+        # 复制 Extent（边界框）
+        extent = src.GetExtentAttr().Get(DEFAULT_TIMECODE)
+        if extent is None:
+            extent = src.GetExtentAttr().Get()
+        if extent is not None:
+            dst.GetExtentAttr().Set(extent)
+
+        # 复制其他 Primvars（如颜色等，但不包括 UV，UV 会单独处理）
+        src_api = UsdGeom.PrimvarsAPI(src.GetPrim())
+        dst_api = UsdGeom.PrimvarsAPI(dst.GetPrim())
+        for pv in src_api.GetPrimvars():
+            pv_name = pv.GetPrimvarName()
+            # 跳过 UV 相关的 primvar
+            if pv_name in ("st", "st0", "st1", "st2", "uv", "UVMap"):
+                continue
+            if pv.HasValue():
+                val = pv.Get(DEFAULT_TIMECODE)
+                if val is None:
+                    val = pv.Get()
+                if val is not None:
+                    try:
+                        new_pv = dst_api.CreatePrimvar(
+                            pv_name,
+                            pv.GetTypeName(),
+                            pv.GetInterpolation()
+                        )
+                        new_pv.Set(val)
+                    except Exception:
+                        pass  # 跳过无法复制的 primvar
+
+    except Exception as e:
+        if log:
+            log(f"[Warning] Error copying curve data: {e}")

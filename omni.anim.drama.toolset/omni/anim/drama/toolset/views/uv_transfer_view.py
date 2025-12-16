@@ -42,6 +42,10 @@ class UVTransferView(BaseView):
         self._out_field = None
         self._picker = None
 
+        # 批量处理 UI 组件
+        self._pairs_list_field = None
+        self._pairs_count_label = None
+
         # 绑定数据变更
         self._vm.add_data_changed_callback(self._refresh_display)
 
@@ -54,6 +58,8 @@ class UVTransferView(BaseView):
             self._build_output_section()
             ui.Separator()
             self._build_action_button()
+            ui.Separator()
+            self._build_batch_section()
             self._create_log_section()
 
     # =========================================================================
@@ -129,12 +135,81 @@ class UVTransferView(BaseView):
 
     def _build_action_button(self) -> None:
         """构建操作按钮区域。"""
+        ui.Label("Single Bake:", style={"color": Colors.TEXT_SECONDARY})
         ui.Button(
             "Bake (reloc-safe) → final.usd[a/c]",
             height=Sizes.BUTTON_HEIGHT_LARGE,
             style=Styles.BUTTON_SUCCESS,
             clicked_fn=self._on_bake_clicked
         )
+        ui.Spacer(height=4)
+        ui.Button(
+            "Bake (standalone) → No Dependencies",
+            height=Sizes.BUTTON_HEIGHT_LARGE,
+            style={"color": Colors.INFO},
+            clicked_fn=self._on_bake_standalone_clicked
+        )
+
+    # =========================================================================
+    # UI 构建：批量处理部分
+    # =========================================================================
+
+    def _build_batch_section(self) -> None:
+        """构建批量处理区域。"""
+        with ui.CollapsableFrame("Batch Processing", collapsed=True):
+            with ui.VStack(spacing=Sizes.SPACING_SMALL):
+                # 说明
+                ui.Label(
+                    "Add multiple Source-Target pairs to process in batch",
+                    style={"color": Colors.TEXT_SECONDARY}
+                )
+
+                # 添加按钮
+                with ui.HStack(height=Sizes.BUTTON_HEIGHT):
+                    ui.Button(
+                        "Add Current Pair to List",
+                        clicked_fn=self._on_add_pair_clicked
+                    )
+                    ui.Button(
+                        "Clear List",
+                        width=100,
+                        clicked_fn=self._on_clear_pairs_clicked
+                    )
+
+                # 对数显示
+                with ui.HStack(height=24):
+                    ui.Label("Pairs in list:", width=100)
+                    self._pairs_count_label = ui.Label(
+                        "0",
+                        style={"color": Colors.WARNING}
+                    )
+
+                # 列表显示
+                ui.Label("Pairs List:", style={"color": Colors.TEXT_SECONDARY})
+                self._pairs_list_field = ui.StringField(
+                    multiline=True,
+                    height=80,
+                    read_only=True
+                )
+                self._pairs_list_field.model.set_value("(empty)")
+
+                ui.Spacer(height=4)
+
+                # 批量执行按钮
+                ui.Label("Batch Bake:", style={"color": Colors.TEXT_SECONDARY})
+                ui.Button(
+                    "Batch Bake All (reloc-safe)",
+                    height=Sizes.BUTTON_HEIGHT_LARGE,
+                    style=Styles.BUTTON_SUCCESS,
+                    clicked_fn=self._on_batch_bake_clicked
+                )
+                ui.Spacer(height=4)
+                ui.Button(
+                    "Batch Bake All (standalone)",
+                    height=Sizes.BUTTON_HEIGHT_LARGE,
+                    style={"color": Colors.INFO},
+                    clicked_fn=self._on_batch_bake_standalone_clicked
+                )
 
     # =========================================================================
     # 事件处理
@@ -236,6 +311,47 @@ class UVTransferView(BaseView):
         # 执行烘焙
         self._vm.run_bake()
 
+    def _on_bake_standalone_clicked(self) -> None:
+        """独立烘焙按钮点击。"""
+        # 获取输出路径
+        if self._out_field:
+            self._vm.output_path = self._out_field.model.get_value_as_string()
+
+        # 执行独立烘焙
+        self._vm.run_bake_standalone()
+
+    def _on_add_pair_clicked(self) -> None:
+        """添加对到列表按钮点击。"""
+        self._vm.add_current_pair()
+
+    def _on_clear_pairs_clicked(self) -> None:
+        """清空列表按钮点击。"""
+        self._vm.clear_pairs_list()
+
+    def _on_batch_bake_clicked(self) -> None:
+        """批量烘焙按钮点击。"""
+        # 获取输出路径
+        if self._out_field:
+            self._vm.output_path = self._out_field.model.get_value_as_string()
+
+        # 执行批量烘焙
+        success, fail, errors = self._vm.run_batch_bake(standalone=False)
+        if errors:
+            for err in errors:
+                self._vm.log(f"Error: {err}")
+
+    def _on_batch_bake_standalone_clicked(self) -> None:
+        """批量独立烘焙按钮点击。"""
+        # 获取输出路径
+        if self._out_field:
+            self._vm.output_path = self._out_field.model.get_value_as_string()
+
+        # 执行批量独立烘焙
+        success, fail, errors = self._vm.run_batch_bake(standalone=True)
+        if errors:
+            for err in errors:
+                self._vm.log(f"Error: {err}")
+
     # =========================================================================
     # 数据刷新
     # =========================================================================
@@ -251,6 +367,22 @@ class UVTransferView(BaseView):
         if self._out_field:
             self._out_field.model.set_value(self._vm.output_path)
 
+        # 更新批量处理列表显示
+        if self._pairs_count_label:
+            count = self._vm.pairs_count
+            self._pairs_count_label.text = str(count)
+            if count > 0:
+                self._pairs_count_label.style = {"color": Colors.SUCCESS}
+            else:
+                self._pairs_count_label.style = {"color": Colors.WARNING}
+
+        if self._pairs_list_field:
+            display_list = self._vm.get_pairs_display_list()
+            if display_list:
+                self._pairs_list_field.model.set_value("\n".join(display_list))
+            else:
+                self._pairs_list_field.model.set_value("(empty)")
+
     # =========================================================================
     # 生命周期
     # =========================================================================
@@ -263,4 +395,6 @@ class UVTransferView(BaseView):
         self._tgt_field = None
         self._pv_field = None
         self._out_field = None
+        self._pairs_list_field = None
+        self._pairs_count_label = None
         super().dispose()

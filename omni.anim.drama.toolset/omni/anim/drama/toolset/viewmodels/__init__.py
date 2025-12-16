@@ -14,16 +14,19 @@ ViewModel 负责：
     - load_manager_vm: 角色加载管理 ViewModel
     - curves_width_vm: 曲线宽度调整 ViewModel
     - uv_transfer_vm: UV 传输 ViewModel
+    - light_link_vm: 灯光链接 ViewModel
 """
 
 from .base_viewmodel import BaseViewModel
 from .load_manager_vm import LoadManagerViewModel
 from .curves_width_vm import CurvesWidthViewModel
 from .uv_transfer_vm import UVTransferViewModel
+from .light_link_vm import LightLinkViewModel
 
 __all__ = [
     "BaseViewModel",
     "LoadManagerViewModel",
     "CurvesWidthViewModel",
     "UVTransferViewModel",
+    "LightLinkViewModel",
 ]
