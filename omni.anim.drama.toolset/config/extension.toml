@@ -3,17 +3,18 @@
 
 [package]
 title = "Anim Drama Toolset"
-version = "0.1.0"
+version = "0.2.0"
 description = """
 动画制作工具集，提供以下功能：
 - Load Manager: 角色加载/卸载管理，支持批量操作
 - Curves Width: BasisCurves 宽度调整，支持实时预览
 - UV Transfer: UV 数据传输，支持重定位安全输出
+- Light Link: 灯光链接管理，精确控制灯光照射范围
 """
 category = "Animation"
 changelog = "docs/CHANGELOG.md"
 icon = "data/icon.png"
-keywords = ["animation", "curves", "uv", "load", "toolset", "drama"]
+keywords = ["animation", "curves", "uv", "load", "toolset", "drama", "light", "lighting"]
 preview_image = "data/preview.png"
 readme = "docs/README.md"
 repository = "https://github.com/bilibili/omniverse-anim-drama-toolset"

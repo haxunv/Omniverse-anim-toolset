@@ -34,7 +34,7 @@ class LightLinkViewModel(BaseViewModel):
     并提供 Light Link 创建和管理的命令。
 
     Attributes:
-        geometry_path: 选中的几何体路径
+        geometry_paths: 选中的几何体路径列表（支持多选）
         light_path: 选中的灯光路径
         include_shadow: 是否同时创建 Shadow Link
     """
@@ -43,7 +43,7 @@ class LightLinkViewModel(BaseViewModel):
         """初始化 LightLinkViewModel。"""
         super().__init__()
 
-        self._geometry_path: str = ""
+        self._geometry_paths: List[str] = []
         self._light_path: str = ""
         self._include_shadow: bool = True
 
@@ -55,15 +55,90 @@ class LightLinkViewModel(BaseViewModel):
     # =========================================================================
 
     @property
-    def geometry_path(self) -> str:
-        """获取几何体路径。"""
-        return self._geometry_path
+    def geometry_paths(self) -> List[str]:
+        """获取几何体路径列表。"""
+        return self._geometry_paths
 
-    @geometry_path.setter
-    def geometry_path(self, value: str) -> None:
-        """设置几何体路径。"""
-        self._geometry_path = value
+    @geometry_paths.setter
+    def geometry_paths(self, value: List[str]) -> None:
+        """设置几何体路径列表。"""
+        self._geometry_paths = value
         self._notify_data_changed()
+
+    @property
+    def geometry_path(self) -> str:
+        """获取第一个几何体路径（兼容旧接口）。"""
+        return self._geometry_paths[0] if self._geometry_paths else ""
+
+    @property
+    def geometry_count(self) -> int:
+        """获取几何体数量。"""
+        return len(self._geometry_paths)
+
+    def get_geometry_display(self) -> str:
+        """获取几何体显示文本。"""
+        count = len(self._geometry_paths)
+        if count == 0:
+            return "Not Set"
+        elif count == 1:
+            return self._geometry_paths[0]
+        else:
+            # 显示第一个和数量
+            first_name = self._geometry_paths[0].split("/")[-1]
+            return f"{first_name} (+{count - 1} more)"
+
+    def get_geometry_list_data(self) -> List[dict]:
+        """
+        获取几何体列表数据，用于表格显示。
+
+        Returns:
+            List[dict]: 包含 index, name, path 的字典列表
+        """
+        result = []
+        for i, path in enumerate(self._geometry_paths):
+            name = path.split("/")[-1] if "/" in path else path
+            result.append({
+                "index": i,
+                "name": name,
+                "path": path
+            })
+        return result
+
+    def remove_geometry_at(self, index: int) -> bool:
+        """
+        删除指定索引的几何体。
+
+        Args:
+            index: 要删除的几何体索引
+
+        Returns:
+            bool: 是否成功删除
+        """
+        if 0 <= index < len(self._geometry_paths):
+            removed = self._geometry_paths.pop(index)
+            name = removed.split("/")[-1]
+            self.log(f"✓ Removed: {name}")
+            self._notify_data_changed()
+            return True
+        return False
+
+    def remove_geometry_by_path(self, path: str) -> bool:
+        """
+        根据路径删除几何体。
+
+        Args:
+            path: 要删除的几何体路径
+
+        Returns:
+            bool: 是否成功删除
+        """
+        if path in self._geometry_paths:
+            self._geometry_paths.remove(path)
+            name = path.split("/")[-1]
+            self.log(f"✓ Removed: {name}")
+            self._notify_data_changed()
+            return True
+        return False
 
     @property
     def light_path(self) -> str:
@@ -115,14 +190,14 @@ class LightLinkViewModel(BaseViewModel):
 
     def set_geometry_from_selection(self) -> bool:
         """
-        从当前选择设置几何体。
+        从当前选择设置几何体（支持多选）。
 
         Returns:
             bool: 是否成功设置
         """
         selection = get_selection_paths()
         if not selection:
-            self.log("⚠️ Please select a geometry first")
+            self.log("⚠️ Please select geometry first")
             return False
 
         stage = get_stage()
@@ -130,19 +205,43 @@ class LightLinkViewModel(BaseViewModel):
             self.log("❌ No Stage open")
             return False
 
-        # 验证是否为几何体
-        prim = stage.GetPrimAtPath(selection[0])
-        if not prim or not prim.IsValid():
-            self.log(f"❌ Invalid Prim: {selection[0]}")
+        valid_paths = []
+        skipped_lights = 0
+
+        for path in selection:
+            prim = stage.GetPrimAtPath(path)
+            if not prim or not prim.IsValid():
+                self.log(f"⚠️ Skipped invalid Prim: {path}")
+                continue
+
+            # 跳过灯光
+            if is_light_prim(prim):
+                skipped_lights += 1
+                continue
+
+            valid_paths.append(path)
+
+        if not valid_paths:
+            self.log("❌ No valid geometry in selection")
+            if skipped_lights > 0:
+                self.log(f"   (Skipped {skipped_lights} lights)")
             return False
 
-        # 检查是否误选了灯光
-        if is_light_prim(prim):
-            self.log(f"⚠️ Selected a light, please select geometry: {selection[0]}")
-            return False
+        self._geometry_paths = valid_paths
 
-        self._geometry_path = selection[0]
-        self.log(f"✓ Geometry = {self._geometry_path}")
+        if len(valid_paths) == 1:
+            self.log(f"✓ Geometry = {valid_paths[0]}")
+        else:
+            self.log(f"✓ Geometries = {len(valid_paths)} selected")
+            for i, path in enumerate(valid_paths[:5]):  # 只显示前5个
+                name = path.split("/")[-1]
+                self.log(f"   {i+1}. {name}")
+            if len(valid_paths) > 5:
+                self.log(f"   ... and {len(valid_paths) - 5} more")
+
+        if skipped_lights > 0:
+            self.log(f"   (Skipped {skipped_lights} lights)")
+
         self._notify_data_changed()
         return True
 
@@ -184,13 +283,13 @@ class LightLinkViewModel(BaseViewModel):
 
     def create_link(self) -> Tuple[bool, str]:
         """
-        创建 Light Link。
+        创建 Light Link（支持多个几何体）。
 
         Returns:
             Tuple[bool, str]: (是否成功, 消息)
         """
         # 验证输入
-        if not self._geometry_path:
+        if not self._geometry_paths:
             msg = "❌ Please set geometry first"
             self.log(msg)
             return False, msg
@@ -200,37 +299,55 @@ class LightLinkViewModel(BaseViewModel):
             self.log(msg)
             return False, msg
 
-        # 创建 Light Link
-        success, message = create_light_link(
-            light_path=self._light_path,
-            geometry_path=self._geometry_path,
-            include_mode=True
-        )
+        success_count = 0
+        fail_count = 0
 
-        if success:
+        self.log(f"Creating Light Link for {len(self._geometry_paths)} geometries...")
+
+        for geo_path in self._geometry_paths:
+            # 创建 Light Link
+            success, message = create_light_link(
+                light_path=self._light_path,
+                geometry_path=geo_path,
+                include_mode=True
+            )
+
+            if success:
+                success_count += 1
+
+                # 如果需要，同时创建 Shadow Link
+                if self._include_shadow:
+                    create_shadow_link(
+                        light_path=self._light_path,
+                        geometry_path=geo_path,
+                        include_mode=True
+                    )
+            else:
+                fail_count += 1
+                geo_name = geo_path.split("/")[-1]
+                self.log(f"   ⚠️ Failed: {geo_name} - {message}")
+
+        # 汇总结果
+        if fail_count == 0:
             self.log(f"✅ Light Link created successfully!")
             self.log(f"   Light: {self._light_path}")
-            self.log(f"   Geometry: {self._geometry_path}")
-
-            # 如果需要，同时创建 Shadow Link
+            self.log(f"   Geometries: {success_count}")
             if self._include_shadow:
-                shadow_success, shadow_msg = create_shadow_link(
-                    light_path=self._light_path,
-                    geometry_path=self._geometry_path,
-                    include_mode=True
-                )
-                if shadow_success:
-                    self.log(f"   + Shadow Link created")
-                else:
-                    self.log(f"   ⚠️ Shadow Link failed: {shadow_msg}")
+                self.log(f"   + Shadow Links created")
+            return True, f"Created {success_count} links"
+        elif success_count > 0:
+            self.log(f"⚠️ Partial success: {success_count} succeeded, {fail_count} failed")
+            return True, f"Created {success_count} links, {fail_count} failed"
         else:
-            self.log(f"❌ Creation failed: {message}")
-
-        return success, message
+            self.log(f"❌ All {fail_count} links failed")
+            return False, "All links failed"
 
     def remove_link(self) -> Tuple[bool, str]:
         """
-        移除当前灯光的所有 Light Link。
+        移除当前灯光的 Light Link。
+
+        如果设置了几何体，则只移除对应几何体的链接；
+        否则移除该灯光的所有链接。
 
         Returns:
             Tuple[bool, str]: (是否成功, 消息)
@@ -240,17 +357,42 @@ class LightLinkViewModel(BaseViewModel):
             self.log(msg)
             return False, msg
 
-        success, message = remove_light_link(
-            light_path=self._light_path,
-            geometry_path=self._geometry_path if self._geometry_path else None
-        )
+        if self._geometry_paths:
+            # 移除指定几何体的链接
+            success_count = 0
+            fail_count = 0
 
-        if success:
-            self.log(f"✅ Light Link removed")
+            for geo_path in self._geometry_paths:
+                success, message = remove_light_link(
+                    light_path=self._light_path,
+                    geometry_path=geo_path
+                )
+                if success:
+                    success_count += 1
+                else:
+                    fail_count += 1
+
+            if success_count > 0:
+                self.log(f"✅ Removed {success_count} Light Link(s)")
+                if fail_count > 0:
+                    self.log(f"   ({fail_count} failed)")
+                return True, f"Removed {success_count} links"
+            else:
+                self.log(f"❌ Remove failed")
+                return False, "Remove failed"
         else:
-            self.log(f"❌ Remove failed: {message}")
+            # 移除该灯光的所有链接
+            success, message = remove_light_link(
+                light_path=self._light_path,
+                geometry_path=None
+            )
 
-        return success, message
+            if success:
+                self.log(f"✅ All Light Links removed")
+            else:
+                self.log(f"❌ Remove failed: {message}")
+
+            return success, message
 
     # =========================================================================
     # 命令：查看信息
@@ -317,13 +459,14 @@ class LightLinkViewModel(BaseViewModel):
         Returns:
             Tuple[bool, str]: (是否有效, 错误消息)
         """
-        if not self._geometry_path:
+        if not self._geometry_paths:
             return False, "Geometry not set."
 
         if not self._light_path:
             return False, "Light not set."
 
-        return True, "Ready to create Light Link."
+        count = len(self._geometry_paths)
+        return True, f"Ready to create {count} Light Link(s)."
 
     # =========================================================================
     # 快捷操作
@@ -331,16 +474,56 @@ class LightLinkViewModel(BaseViewModel):
 
     def clear_selections(self) -> None:
         """清空所有选择。"""
-        self._geometry_path = ""
+        self._geometry_paths = []
         self._light_path = ""
         self._notify_data_changed()
         self.log("Selection cleared")
 
-    def swap_selections(self) -> None:
-        """交换几何体和灯光选择（用于调试/特殊用途）。"""
-        self._geometry_path, self._light_path = self._light_path, self._geometry_path
+    def add_geometry_from_selection(self) -> bool:
+        """
+        从当前选择添加几何体到已有列表（追加模式）。
+
+        Returns:
+            bool: 是否成功添加
+        """
+        selection = get_selection_paths()
+        if not selection:
+            self.log("⚠️ Please select geometry first")
+            return False
+
+        stage = get_stage()
+        if not stage:
+            self.log("❌ No Stage open")
+            return False
+
+        added_count = 0
+        for path in selection:
+            if path in self._geometry_paths:
+                continue  # 已经在列表中
+
+            prim = stage.GetPrimAtPath(path)
+            if not prim or not prim.IsValid():
+                continue
+
+            if is_light_prim(prim):
+                continue  # 跳过灯光
+
+            self._geometry_paths.append(path)
+            added_count += 1
+
+        if added_count > 0:
+            self.log(f"✓ Added {added_count} geometry, total: {len(self._geometry_paths)}")
+            self._notify_data_changed()
+            return True
+        else:
+            self.log("⚠️ No new geometry to add")
+            return False
+
+    def clear_geometries(self) -> None:
+        """只清空几何体选择。"""
+        self._geometry_paths = []
         self._notify_data_changed()
-        self.log("Selection swapped")
+        self.log("Geometries cleared")
 
     # =========================================================================
     # 生命周期
@@ -349,7 +532,7 @@ class LightLinkViewModel(BaseViewModel):
     def dispose(self) -> None:
         """清理资源。"""
         self._data_changed_callbacks.clear()
-        self._geometry_path = ""
+        self._geometry_paths = []
         self._light_path = ""
         super().dispose()
 

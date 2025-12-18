@@ -42,6 +42,7 @@ class LightLinkView(BaseView):
 
         # UI 组件引用
         self._geo_label = None
+        self._geo_table_container = None  # 几何体表格容器
         self._light_label = None
         self._shadow_checkbox = None
         self._info_field = None
@@ -84,26 +85,116 @@ class LightLinkView(BaseView):
 
     def _build_step1_geometry(self) -> None:
         """构建几何体设置区域。"""
-        with ui.CollapsableFrame("Select Geometry", collapsed=False):
+        with ui.CollapsableFrame("Select Geometry (Multi-Select Supported)", collapsed=False):
             with ui.VStack(spacing=Sizes.SPACING_SMALL):
                 ui.Label(
-                    "Select the object to be illuminated, then click the button below",
+                    "Select one or more objects to be illuminated, then click the button below",
                     style={"color": Colors.TEXT_SECONDARY}
                 )
 
-                with ui.HStack(height=30):
-                    ui.Label("Geometry:", width=80)
+                # 按钮行
+                with ui.HStack(spacing=Sizes.SPACING_SMALL):
+                    ui.Button(
+                        "Set Geometries (Replace)",
+                        height=Sizes.BUTTON_HEIGHT,
+                        clicked_fn=self._on_set_geometry_clicked,
+                        tooltip="Replace all with current selection"
+                    )
+                    ui.Button(
+                        "Add More",
+                        height=Sizes.BUTTON_HEIGHT,
+                        clicked_fn=self._on_add_geometry_clicked,
+                        tooltip="Add current selection to existing list"
+                    )
+                    ui.Button(
+                        "Clear All",
+                        width=70,
+                        height=Sizes.BUTTON_HEIGHT,
+                        clicked_fn=self._on_clear_geometry_clicked,
+                        tooltip="Clear geometry list"
+                    )
+
+                # 几何体数量标签
+                with ui.HStack(height=20):
+                    ui.Label("Count:", width=50)
                     self._geo_label = ui.Label(
-                        "Not Set",
-                        word_wrap=True,
+                        "0",
                         style={"color": Colors.WARNING}
                     )
 
-                ui.Button(
-                    "Set Geometry (from Selection)",
-                    height=Sizes.BUTTON_HEIGHT,
-                    clicked_fn=self._on_set_geometry_clicked
+                # 几何体表格（可滚动）
+                with ui.ScrollingFrame(
+                    height=120,
+                    horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
+                    vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
+                    style={"background_color": 0xFF1E1E1E, "border_radius": 4}
+                ):
+                    self._geo_table_container = ui.VStack(spacing=2)
+                    with self._geo_table_container:
+                        # 表头
+                        self._build_geometry_table_header()
+                        # 空状态提示
+                        ui.Label(
+                            "  No geometry selected",
+                            style={"color": Colors.TEXT_SECONDARY}
+                        )
+
+    def _build_geometry_table_header(self) -> None:
+        """构建几何体表格表头。"""
+        with ui.HStack(height=22, style={"background_color": 0xFF2D2D2D}):
+            ui.Label("#", width=30, style={"color": Colors.TEXT_SECONDARY})
+            ui.Label("Name", width=120, style={"color": Colors.TEXT_SECONDARY})
+            ui.Label("Path", style={"color": Colors.TEXT_SECONDARY})
+            ui.Spacer(width=30)  # 删除按钮占位
+
+    def _build_geometry_table_rows(self) -> None:
+        """构建几何体表格数据行。"""
+        geo_list = self._vm.get_geometry_list_data()
+
+        if not geo_list:
+            ui.Label(
+                "  No geometry selected",
+                style={"color": Colors.TEXT_SECONDARY}
+            )
+            return
+
+        for item in geo_list:
+            idx = item["index"]
+            name = item["name"]
+            path = item["path"]
+
+            with ui.HStack(height=22):
+                ui.Label(f"{idx + 1}", width=30, style={"color": Colors.TEXT_SECONDARY})
+                ui.Label(
+                    name,
+                    width=120,
+                    elided_text=True,
+                    tooltip=name,
+                    style={"color": Colors.TEXT_PRIMARY}
                 )
+                ui.Label(
+                    path,
+                    elided_text=True,
+                    tooltip=path,
+                    style={"color": Colors.SUCCESS}
+                )
+                # 删除按钮 - 使用闭包捕获当前路径
+                ui.Button(
+                    "×",
+                    width=24,
+                    height=20,
+                    clicked_fn=lambda p=path: self._on_remove_geometry_clicked(p),
+                    tooltip=f"Remove {name}",
+                    style={"background_color": 0xFF5A3030}
+                )
+
+    def _rebuild_geometry_table(self) -> None:
+        """重建几何体表格。"""
+        if self._geo_table_container:
+            self._geo_table_container.clear()
+            with self._geo_table_container:
+                self._build_geometry_table_header()
+                self._build_geometry_table_rows()
 
     # =========================================================================
     # UI 构建：步骤2 - 设置灯光
@@ -202,8 +293,20 @@ class LightLinkView(BaseView):
     # =========================================================================
 
     def _on_set_geometry_clicked(self) -> None:
-        """设置几何体按钮点击。"""
+        """设置几何体按钮点击（替换模式）。"""
         self._vm.set_geometry_from_selection()
+
+    def _on_add_geometry_clicked(self) -> None:
+        """添加几何体按钮点击（追加模式）。"""
+        self._vm.add_geometry_from_selection()
+
+    def _on_clear_geometry_clicked(self) -> None:
+        """清空几何体按钮点击。"""
+        self._vm.clear_geometries()
+
+    def _on_remove_geometry_clicked(self, path: str) -> None:
+        """删除单个几何体按钮点击。"""
+        self._vm.remove_geometry_by_path(path)
 
     def _on_set_light_clicked(self) -> None:
         """设置灯光按钮点击。"""
@@ -237,15 +340,18 @@ class LightLinkView(BaseView):
 
     def _refresh_display(self) -> None:
         """刷新显示数据。"""
-        # 更新几何体显示
+        # 更新几何体数量标签
         if self._geo_label:
-            geo_path = self._vm.geometry_path
-            if geo_path:
-                self._geo_label.text = geo_path
+            geo_count = self._vm.geometry_count
+            if geo_count > 0:
+                self._geo_label.text = f"{geo_count} geometry selected"
                 self._geo_label.style = {"color": Colors.SUCCESS}
             else:
-                self._geo_label.text = "Not Set"
+                self._geo_label.text = "0 (Not Set)"
                 self._geo_label.style = {"color": Colors.WARNING}
+
+        # 重建几何体表格
+        self._rebuild_geometry_table()
 
         # 更新灯光显示
         if self._light_label:
@@ -269,6 +375,7 @@ class LightLinkView(BaseView):
         """清理资源。"""
         self._vm.remove_data_changed_callback(self._refresh_display)
         self._geo_label = None
+        self._geo_table_container = None
         self._light_label = None
         self._shadow_checkbox = None
         self._info_field = None
