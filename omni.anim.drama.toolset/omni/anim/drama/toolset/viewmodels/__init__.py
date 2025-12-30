@@ -15,6 +15,7 @@ ViewModel 负责：
     - curves_width_vm: 曲线宽度调整 ViewModel
     - uv_transfer_vm: UV 传输 ViewModel
     - light_link_vm: 灯光链接 ViewModel
+    - ai_camera_vm: AI 镜头生成 ViewModel
 """
 
 from .base_viewmodel import BaseViewModel
@@ -22,6 +23,7 @@ from .load_manager_vm import LoadManagerViewModel
 from .curves_width_vm import CurvesWidthViewModel
 from .uv_transfer_vm import UVTransferViewModel
 from .light_link_vm import LightLinkViewModel
+from .ai_camera_vm import AICameraViewModel
 
 __all__ = [
     "BaseViewModel",
@@ -29,4 +31,5 @@ __all__ = [
     "CurvesWidthViewModel",
     "UVTransferViewModel",
     "LightLinkViewModel",
+    "AICameraViewModel",
 ]
