@@ -1,10 +1,17 @@
 # -*- coding: utf-8 -*-
 """
+Core Module - 核心业务逻辑层
+============================
+
 模块结构:
     - stage_utils: Stage 相关的通用工具函数
     - load_manager: 角色加载/卸载管理核心逻辑
     - curves_width: BasisCurves 宽度调整核心逻辑
     - uv_transfer: UV 数据传输核心逻辑
+    - light_link: 灯光链接核心逻辑
+    - light_control: 灯光创建/修改核心逻辑
+    - scene_exporter: 场景信息导出
+    - render_capture: 渲染图采集
 """
 
 from .stage_utils import (
@@ -27,6 +34,32 @@ from .uv_transfer import (
     expand_primvar,
     bake_uv_to_file,
 )
+from .light_link import (
+    is_light_prim,
+    is_geometry_prim,
+    create_light_link,
+    remove_light_link,
+    get_light_link_targets,
+)
+from .light_control import (
+    create_light,
+    modify_light,
+    delete_light,
+    execute_light_operations,
+    get_all_lights,
+    get_light_info,
+    get_lights_summary,
+)
+from .scene_exporter import (
+    export_scene_info,
+    export_scene_info_for_llm,
+    export_cameras_info,
+    export_lights_info,
+)
+from .render_capture import (
+    capture_viewport,
+    read_image_as_base64,
+)
 
 __all__ = [
     # stage_utils
@@ -45,4 +78,26 @@ __all__ = [
     "collect_curves_under",
     "expand_primvar",
     "bake_uv_to_file",
+    # light_link
+    "is_light_prim",
+    "is_geometry_prim",
+    "create_light_link",
+    "remove_light_link",
+    "get_light_link_targets",
+    # light_control
+    "create_light",
+    "modify_light",
+    "delete_light",
+    "execute_light_operations",
+    "get_all_lights",
+    "get_light_info",
+    "get_lights_summary",
+    # scene_exporter
+    "export_scene_info",
+    "export_scene_info_for_llm",
+    "export_cameras_info",
+    "export_lights_info",
+    # render_capture
+    "capture_viewport",
+    "read_image_as_base64",
 ]

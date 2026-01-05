@@ -15,6 +15,8 @@ Views Module - 视图层 (View Layer)
     - load_manager_view: 角色加载管理视图
     - curves_width_view: 曲线宽度调整视图
     - uv_transfer_view: UV 传输视图
+    - light_link_view: 灯光链接视图
+    - relight_view: 动画重打光视图
     - main_window: 主窗口（标签页容器）
 """
 
@@ -23,6 +25,8 @@ from .base_view import BaseView
 from .load_manager_view import LoadManagerView
 from .curves_width_view import CurvesWidthView
 from .uv_transfer_view import UVTransferView
+from .light_link_view import LightLinkView
+from .relight_view import RelightView
 from .main_window import MainWindow
 
 __all__ = [
@@ -31,5 +35,7 @@ __all__ = [
     "LoadManagerView",
     "CurvesWidthView",
     "UVTransferView",
+    "LightLinkView",
+    "RelightView",
     "MainWindow",
 ]

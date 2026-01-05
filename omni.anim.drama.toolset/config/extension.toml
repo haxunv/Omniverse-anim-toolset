@@ -10,11 +10,12 @@ description = """
 - Curves Width: BasisCurves 宽度调整，支持实时预览
 - UV Transfer: UV 数据传输，支持重定位安全输出
 - Light Link: 灯光链接管理，精确控制灯光照射范围
+- AI Relight: AI辅助动画重打光，通过多模态大模型分析并生成灯光调整
 """
 category = "Animation"
 changelog = "docs/CHANGELOG.md"
 icon = "data/icon.png"
-keywords = ["animation", "curves", "uv", "load", "toolset", "drama", "light", "lighting"]
+keywords = ["animation", "curves", "uv", "load", "toolset", "drama", "light", "lighting", "relight", "ai", "gemini"]
 preview_image = "data/preview.png"
 readme = "docs/README.md"
 repository = "https://github.com/bilibili/omniverse-anim-drama-toolset"
