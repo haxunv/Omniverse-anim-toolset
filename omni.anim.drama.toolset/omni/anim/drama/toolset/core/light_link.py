@@ -139,11 +139,13 @@ def create_light_link(
         if not light_link:
             # 应用 CollectionAPI
             light_link = Usd.CollectionAPI.Apply(light_prim, "lightLink")
-
-            # 设置默认行为：includeRoot = True 表示默认照亮所有
-            # 设为 False 则只照亮 includes 列表中的对象
-            light_link.CreateIncludeRootAttr().Set(False)
-            light_link.CreateExpansionRuleAttr().Set("expandPrims")
+        
+        # 强制设置为最可靠的模式（每次创建都确保设置正确）
+        # includeRoot = False: 不默认照亮所有物体，只照亮 includes 列表中的
+        # expansionRule = "explicitOnly": 只包含明确指定的目标，不展开
+        # 注意：expandPrims/expandPrimsAndProperties 在某些渲染器中有 bug
+        light_link.CreateIncludeRootAttr().Set(False)
+        light_link.CreateExpansionRuleAttr().Set("explicitOnly")
 
         # 添加目标到 includes 或 excludes
         if include_mode:
@@ -295,6 +297,7 @@ def get_light_link_info(light_path: str) -> dict:
         "light_path": light_path,
         "has_light_link": False,
         "include_root": True,
+        "expansion_rule": "expandPrims",
         "includes": [],
         "excludes": [],
     }
@@ -307,6 +310,10 @@ def get_light_link_info(light_path: str) -> dict:
             include_root_attr = light_link.GetIncludeRootAttr()
             if include_root_attr and include_root_attr.HasAuthoredValue():
                 info["include_root"] = include_root_attr.Get()
+
+            expansion_rule_attr = light_link.GetExpansionRuleAttr()
+            if expansion_rule_attr and expansion_rule_attr.HasAuthoredValue():
+                info["expansion_rule"] = expansion_rule_attr.Get()
 
             includes_rel = light_link.GetIncludesRel()
             excludes_rel = light_link.GetExcludesRel()
@@ -358,8 +365,10 @@ def create_shadow_link(
 
         if not shadow_link:
             shadow_link = Usd.CollectionAPI.Apply(light_prim, "shadowLink")
-            shadow_link.CreateIncludeRootAttr().Set(False)
-            shadow_link.CreateExpansionRuleAttr().Set("expandPrims")
+        
+        # 强制设置为最可靠的模式
+        shadow_link.CreateIncludeRootAttr().Set(False)
+        shadow_link.CreateExpansionRuleAttr().Set("explicitOnly")
 
         if include_mode:
             includes_rel = shadow_link.GetIncludesRel()
