@@ -86,34 +86,36 @@ class MainWindow:
                 with ui.HStack(height=30):
                     self._tab_buttons = []
 
-                    btn1 = ui.Button(
-                        "Load Manager",
-                        clicked_fn=lambda: self._switch_tab(0),
-                        style={"background_color": 0xFF3A8EBA}
-                    )
-                    self._tab_buttons.append(btn1)
+                    # [暂时隐藏] Load Manager 标签页
+                    # btn1 = ui.Button(
+                    #     "Load Manager",
+                    #     clicked_fn=lambda: self._switch_tab(0),
+                    #     style={"background_color": 0xFF3A8EBA}
+                    # )
+                    # self._tab_buttons.append(btn1)
 
                     btn2 = ui.Button(
                         "Curves Width",
-                        clicked_fn=lambda: self._switch_tab(1),
+                        clicked_fn=lambda: self._switch_tab(0),
+                        style={"background_color": 0xFF3A8EBA}
                     )
                     self._tab_buttons.append(btn2)
 
                     btn3 = ui.Button(
                         "UV Transfer",
-                        clicked_fn=lambda: self._switch_tab(2),
+                        clicked_fn=lambda: self._switch_tab(1),
                     )
                     self._tab_buttons.append(btn3)
 
                     btn4 = ui.Button(
                         "Light Link",
-                        clicked_fn=lambda: self._switch_tab(3),
+                        clicked_fn=lambda: self._switch_tab(2),
                     )
                     self._tab_buttons.append(btn4)
 
                     btn5 = ui.Button(
                         "AI Relight",
-                        clicked_fn=lambda: self._switch_tab(4),
+                        clicked_fn=lambda: self._switch_tab(3),
                     )
                     self._tab_buttons.append(btn5)
 
@@ -121,25 +123,25 @@ class MainWindow:
 
                 # 内容区域使用 ZStack 叠加
                 with ui.ZStack():
-                    # Load Manager 内容
-                    self._frame1 = ui.Frame(visible=True)
-                    with self._frame1:
-                        with ui.ScrollingFrame(
-                            horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_OFF,
-                            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED
-                        ):
-                            with ui.VStack(
-                                margin=Sizes.MARGIN_MEDIUM,
-                                spacing=Sizes.SPACING_MEDIUM
-                            ):
-                                self._load_manager_view = LoadManagerView(
-                                    self._load_manager_vm
-                                )
-                                self._load_manager_view.build()
-                    self._tab_frames.append(self._frame1)
+                    # [暂时隐藏] Load Manager 内容
+                    # self._frame1 = ui.Frame(visible=True)
+                    # with self._frame1:
+                    #     with ui.ScrollingFrame(
+                    #         horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_OFF,
+                    #         vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED
+                    #     ):
+                    #         with ui.VStack(
+                    #             margin=Sizes.MARGIN_MEDIUM,
+                    #             spacing=Sizes.SPACING_MEDIUM
+                    #         ):
+                    #             self._load_manager_view = LoadManagerView(
+                    #                 self._load_manager_vm
+                    #             )
+                    #             self._load_manager_view.build()
+                    # self._tab_frames.append(self._frame1)
 
                     # Curves Width 内容
-                    self._frame2 = ui.Frame(visible=False)
+                    self._frame2 = ui.Frame(visible=True)
                     with self._frame2:
                         with ui.ScrollingFrame(
                             horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_OFF,
