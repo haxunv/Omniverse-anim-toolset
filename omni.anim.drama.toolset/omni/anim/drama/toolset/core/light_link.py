@@ -140,12 +140,12 @@ def create_light_link(
             # 应用 CollectionAPI
             light_link = Usd.CollectionAPI.Apply(light_prim, "lightLink")
         
-        # 强制设置为最可靠的模式（每次创建都确保设置正确）
+        # 强制设置正确的模式（每次创建都确保设置正确）
         # includeRoot = False: 不默认照亮所有物体，只照亮 includes 列表中的
-        # expansionRule = "explicitOnly": 只包含明确指定的目标，不展开
-        # 注意：expandPrims/expandPrimsAndProperties 在某些渲染器中有 bug
+        # expansionRule = "expandPrimsAndProperties": 展开 prim、子节点和属性
+        # 这个模式可以同时支持单独 mesh 和组（Xform/Scope）
         light_link.CreateIncludeRootAttr().Set(False)
-        light_link.CreateExpansionRuleAttr().Set("explicitOnly")
+        light_link.CreateExpansionRuleAttr().Set("expandPrimsAndProperties")
 
         # 添加目标到 includes 或 excludes
         if include_mode:
@@ -366,9 +366,9 @@ def create_shadow_link(
         if not shadow_link:
             shadow_link = Usd.CollectionAPI.Apply(light_prim, "shadowLink")
         
-        # 强制设置为最可靠的模式
+        # 强制设置正确的模式
         shadow_link.CreateIncludeRootAttr().Set(False)
-        shadow_link.CreateExpansionRuleAttr().Set("explicitOnly")
+        shadow_link.CreateExpansionRuleAttr().Set("expandPrimsAndProperties")
 
         if include_mode:
             includes_rel = shadow_link.GetIncludesRel()
