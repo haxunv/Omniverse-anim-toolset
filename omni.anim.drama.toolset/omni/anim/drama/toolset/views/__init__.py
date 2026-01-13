@@ -17,6 +17,7 @@ Views Module - 视图层 (View Layer)
     - uv_transfer_view: UV 传输视图
     - light_link_view: 灯光链接视图
     - relight_view: 动画重打光视图
+    - render_layer_view: 渲染层管理视图
     - main_window: 主窗口（标签页容器）
 """
 
@@ -27,6 +28,7 @@ from .curves_width_view import CurvesWidthView
 from .uv_transfer_view import UVTransferView
 from .light_link_view import LightLinkView
 from .relight_view import RelightView
+from .render_layer_view import RenderLayerView
 from .main_window import MainWindow
 
 __all__ = [
@@ -37,5 +39,6 @@ __all__ = [
     "UVTransferView",
     "LightLinkView",
     "RelightView",
+    "RenderLayerView",
     "MainWindow",
 ]

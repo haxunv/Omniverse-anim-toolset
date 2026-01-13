@@ -12,6 +12,8 @@ Core Module - 核心业务逻辑层
     - light_control: 灯光创建/修改核心逻辑
     - scene_exporter: 场景信息导出
     - render_capture: 渲染图采集
+    - render_layer: 渲染层管理
+    - render_collection: 渲染层 Collection 管理
 """
 
 from .stage_utils import (
@@ -60,6 +62,57 @@ from .render_capture import (
     capture_viewport,
     read_image_as_base64,
 )
+from .render_layer import (
+    create_render_layer,
+    delete_render_layer,
+    rename_render_layer,
+    get_all_render_layers,
+    get_render_layer_info,
+    set_layer_visible,
+    set_layer_solo,
+    set_layer_renderable,
+    move_layer_up,
+    move_layer_down,
+)
+from .render_collection import (
+    create_collection,
+    delete_collection,
+    add_members,
+    remove_members,
+    get_collection_members,
+    get_collection_info,
+    set_include_expression,
+    get_include_expression,
+)
+from .render_override import (
+    set_visibility_override,
+    set_light_property,
+    set_material_binding,
+    apply_override_to_collection,
+)
+from .render_aov import (
+    create_aov,
+    delete_aov,
+    get_all_aovs,
+    get_aov_info,
+    link_aov_to_layer,
+)
+from .aov_merge import (
+    scan_aov_files,
+    get_scan_summary,
+    merge_aovs_external,
+    auto_merge_aovs,
+    check_openexr_available,
+    ensure_openexr_available,
+)
+from .layer_state import (
+    get_layer_state_manager,
+    switch_to_layer,
+    restore_original_states,
+    enable_layer_state_management,
+    is_layer_state_management_enabled,
+    get_layer_state_info,
+)
 
 __all__ = [
     # stage_utils
@@ -100,4 +153,47 @@ __all__ = [
     # render_capture
     "capture_viewport",
     "read_image_as_base64",
+    # render_layer
+    "create_render_layer",
+    "delete_render_layer",
+    "rename_render_layer",
+    "get_all_render_layers",
+    "get_render_layer_info",
+    "set_layer_visible",
+    "set_layer_solo",
+    "set_layer_renderable",
+    # render_collection
+    "create_collection",
+    "delete_collection",
+    "add_members",
+    "remove_members",
+    "get_collection_members",
+    "get_collection_info",
+    "set_include_expression",
+    "get_include_expression",
+    # render_override
+    "set_visibility_override",
+    "set_light_property",
+    "set_material_binding",
+    "apply_override_to_collection",
+    # render_aov
+    "create_aov",
+    "delete_aov",
+    "get_all_aovs",
+    "get_aov_info",
+    "link_aov_to_layer",
+    # aov_merge
+    "scan_aov_files",
+    "get_scan_summary",
+    "merge_aovs_external",
+    "auto_merge_aovs",
+    "check_openexr_available",
+    "ensure_openexr_available",
+    # layer_state (Maya 风格)
+    "get_layer_state_manager",
+    "switch_to_layer",
+    "restore_original_states",
+    "enable_layer_state_management",
+    "is_layer_state_management_enabled",
+    "get_layer_state_info",
 ]

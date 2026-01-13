@@ -16,6 +16,7 @@ ViewModel 负责：
     - uv_transfer_vm: UV 传输 ViewModel
     - light_link_vm: 灯光链接 ViewModel
     - relight_vm: 动画重打光 ViewModel
+    - render_layer_vm: 渲染层管理 ViewModel
 """
 
 from .base_viewmodel import BaseViewModel
@@ -24,6 +25,7 @@ from .curves_width_vm import CurvesWidthViewModel
 from .uv_transfer_vm import UVTransferViewModel
 from .light_link_vm import LightLinkViewModel
 from .relight_vm import RelightViewModel
+from .render_layer_vm import RenderLayerViewModel
 
 __all__ = [
     "BaseViewModel",
@@ -32,4 +34,5 @@ __all__ = [
     "UVTransferViewModel",
     "LightLinkViewModel",
     "RelightViewModel",
+    "RenderLayerViewModel",
 ]
