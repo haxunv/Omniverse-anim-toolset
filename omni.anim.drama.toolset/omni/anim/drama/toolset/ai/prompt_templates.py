@@ -163,8 +163,41 @@ Output strictly in this JSON format, no other content:
 6. Example low-contrast setup: DomeLight intensity 500, RectLight intensity 1000
 7. Provide reasoning in the "reasoning" field
 
-Now analyze these two images and generate light operation JSON:
+Now analyze these two images and generate light operation JSON.
 '''
+
+    @classmethod
+    def get_relight_analysis_prompt_with_custom(
+        cls,
+        scene_info: str,
+        custom_prompt: str
+    ) -> str:
+        """
+        获取带有用户自定义微调的重打光分析提示词。
+
+        Args:
+            scene_info: 场景信息文本
+            custom_prompt: 用户自定义提示词（用于微调）
+
+        Returns:
+            str: 完整的提示词
+        """
+        base_prompt = cls.get_relight_analysis_prompt(scene_info)
+        
+        # 在基础提示词末尾添加用户自定义内容
+        custom_section = f'''
+## ADDITIONAL USER INSTRUCTIONS (HIGH PRIORITY)
+
+The user has provided the following specific instructions for this relight task.
+**You MUST follow these instructions carefully:**
+
+{custom_prompt}
+
+---
+Now analyze these two images following both the base rules AND the user's specific instructions above.
+'''
+        
+        return base_prompt + custom_section
 
     # =========================================================================
     # 灯光建议提示词

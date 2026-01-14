@@ -5,21 +5,200 @@ Light Control 核心逻辑
 
 提供灯光创建、修改、删除的核心操作。
 支持从JSON原语批量执行灯光操作。
+所有 relight 操作写入独立的 Layer，支持恢复原始灯光。
 
 主要功能:
     - create_light: 创建新灯光
     - modify_light: 修改现有灯光
     - delete_light: 删除灯光
-    - execute_light_operations: 批量执行灯光操作
+    - execute_light_operations: 批量执行灯光操作（自动写入新Layer）
     - get_all_lights: 获取场景中所有灯光
     - get_light_info: 获取灯光详细信息
+    - remove_relight_layer: 移除relight Layer，恢复原始状态
+    - toggle_relight_layer: 启用/禁用relight Layer
 """
 
+import os
+import datetime
 from typing import Dict, List, Tuple, Any, Optional
 from pxr import Usd, UsdLux, UsdGeom, Gf, Sdf
 
 from .stage_utils import get_stage, safe_log
 from .light_link import is_light_prim
+
+
+# =============================================================================
+# Relight Layer 管理
+# =============================================================================
+
+# 全局变量存储当前 relight layer 信息
+_relight_layer_identifier: Optional[str] = None
+
+
+def _create_relight_layer() -> Tuple[bool, str, Optional[Sdf.Layer]]:
+    """
+    创建用于 relight 操作的新 Layer。
+    
+    Returns:
+        Tuple[bool, str, Optional[Sdf.Layer]]: (成功, 消息, Layer对象)
+    """
+    global _relight_layer_identifier
+    
+    stage = get_stage()
+    if not stage:
+        return False, "No stage available", None
+    
+    try:
+        root_layer = stage.GetRootLayer()
+        
+        # 生成带时间戳的 layer 名称
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        layer_name = f"relight_{timestamp}.usd"
+        
+        # 获取场景目录
+        if root_layer.realPath:
+            base_dir = os.path.dirname(root_layer.realPath)
+        else:
+            # 如果是未保存的场景，使用临时目录
+            import tempfile
+            base_dir = tempfile.gettempdir()
+        
+        layer_path = os.path.join(base_dir, layer_name)
+        
+        # 创建新 Layer
+        relight_layer = Sdf.Layer.CreateNew(layer_path)
+        if not relight_layer:
+            return False, f"Failed to create layer: {layer_path}", None
+        
+        # 添加为子 Layer（放在最上层，优先级最高）
+        # 使用相对路径或绝对路径
+        if root_layer.realPath:
+            # 尝试使用相对路径
+            sub_layer_path = layer_name
+        else:
+            sub_layer_path = layer_path
+            
+        root_layer.subLayerPaths.insert(0, sub_layer_path)
+        
+        # 保存 layer 标识符
+        _relight_layer_identifier = relight_layer.identifier
+        
+        msg = f"Relight layer created: {layer_path}"
+        safe_log(f"[LightControl] {msg}")
+        return True, msg, relight_layer
+        
+    except Exception as e:
+        msg = f"Error creating relight layer: {e}"
+        safe_log(f"[LightControl] {msg}")
+        return False, msg, None
+
+
+def remove_relight_layer() -> Tuple[bool, str]:
+    """
+    移除 relight Layer，恢复原始灯光状态。
+    
+    Returns:
+        Tuple[bool, str]: (成功, 消息)
+    """
+    global _relight_layer_identifier
+    
+    stage = get_stage()
+    if not stage:
+        return False, "No stage available"
+    
+    if not _relight_layer_identifier:
+        return False, "No relight layer to remove"
+    
+    try:
+        root_layer = stage.GetRootLayer()
+        
+        # 查找并移除 relight layer
+        layer_found = False
+        for i, sub_path in enumerate(list(root_layer.subLayerPaths)):
+            sub_layer = Sdf.Layer.Find(sub_path)
+            if sub_layer and sub_layer.identifier == _relight_layer_identifier:
+                del root_layer.subLayerPaths[i]
+                layer_found = True
+                break
+            # 也检查路径是否包含 relight 关键字
+            if "relight_" in sub_path:
+                del root_layer.subLayerPaths[i]
+                layer_found = True
+                break
+        
+        if not layer_found:
+            # 尝试直接按路径名移除
+            for i, sub_path in enumerate(list(root_layer.subLayerPaths)):
+                if "relight_" in sub_path:
+                    del root_layer.subLayerPaths[i]
+                    layer_found = True
+                    break
+        
+        _relight_layer_identifier = None
+        
+        if layer_found:
+            msg = "Relight layer removed, original lighting restored"
+        else:
+            msg = "Relight layer not found in sublayers"
+            
+        safe_log(f"[LightControl] {msg}")
+        return True, msg
+        
+    except Exception as e:
+        msg = f"Error removing relight layer: {e}"
+        safe_log(f"[LightControl] {msg}")
+        return False, msg
+
+
+def toggle_relight_layer(enabled: bool) -> Tuple[bool, str]:
+    """
+    启用/禁用 relight Layer（通过 Mute 机制快速切换预览）。
+    
+    Args:
+        enabled: True 启用, False 禁用
+        
+    Returns:
+        Tuple[bool, str]: (成功, 消息)
+    """
+    global _relight_layer_identifier
+    
+    stage = get_stage()
+    if not stage:
+        return False, "No stage available"
+    
+    if not _relight_layer_identifier:
+        return False, "No relight layer available"
+    
+    try:
+        if enabled:
+            stage.UnmuteLayer(_relight_layer_identifier)
+            msg = "Relight layer enabled"
+        else:
+            stage.MuteLayer(_relight_layer_identifier)
+            msg = "Relight layer disabled (muted)"
+            
+        safe_log(f"[LightControl] {msg}")
+        return True, msg
+        
+    except Exception as e:
+        msg = f"Error toggling relight layer: {e}"
+        safe_log(f"[LightControl] {msg}")
+        return False, msg
+
+
+def get_relight_layer_info() -> Dict:
+    """
+    获取当前 relight layer 的信息。
+    
+    Returns:
+        Dict: Layer 信息
+    """
+    global _relight_layer_identifier
+    
+    return {
+        "has_relight_layer": _relight_layer_identifier is not None,
+        "layer_identifier": _relight_layer_identifier,
+    }
 
 
 # =============================================================================
@@ -308,12 +487,18 @@ def delete_light(light_path: str) -> Tuple[bool, str]:
 # 批量操作
 # =============================================================================
 
-def execute_light_operations(operations: List[Dict]) -> Tuple[int, int, List[str]]:
+def execute_light_operations(
+    operations: List[Dict],
+    use_relight_layer: bool = True
+) -> Tuple[int, int, List[str]]:
     """
     批量执行灯光操作。
+    
+    所有操作默认写入独立的 relight Layer，方便后续恢复。
 
     Args:
         operations: 操作列表，每个操作包含 action 和相关参数
+        use_relight_layer: 是否使用独立的 relight layer（默认 True）
 
     Returns:
         Tuple[int, int, List[str]]: (成功数, 失败数, 消息列表)
@@ -321,54 +506,83 @@ def execute_light_operations(operations: List[Dict]) -> Tuple[int, int, List[str
     success_count = 0
     fail_count = 0
     messages = []
-
-    for op in operations:
-        action = op.get("action", "").lower()
-        
-        try:
-            if action == "create":
-                success, msg, path = create_light(
-                    light_type=op.get("light_type", "SphereLight"),
-                    name=op.get("name", "NewLight"),
-                    parent_path=op.get("parent_path", "/World/Lights"),
-                    transform=op.get("transform"),
-                    attributes=op.get("attributes")
-                )
-                if success:
-                    success_count += 1
-                else:
-                    fail_count += 1
-                messages.append(msg)
-            
-            elif action == "modify":
-                success, msg = modify_light(
-                    light_path=op.get("light_path", ""),
-                    transform=op.get("transform"),
-                    attributes=op.get("attributes")
-                )
-                if success:
-                    success_count += 1
-                else:
-                    fail_count += 1
-                messages.append(msg)
-            
-            elif action == "delete":
-                success, msg = delete_light(
-                    light_path=op.get("light_path", "")
-                )
-                if success:
-                    success_count += 1
-                else:
-                    fail_count += 1
-                messages.append(msg)
-            
+    
+    stage = get_stage()
+    if not stage:
+        return 0, len(operations), ["No stage available"]
+    
+    # 保存原始 edit target
+    original_edit_target = stage.GetEditTarget()
+    relight_layer = None
+    
+    try:
+        # 创建 relight layer 并设置为 edit target
+        if use_relight_layer:
+            layer_success, layer_msg, relight_layer = _create_relight_layer()
+            if layer_success and relight_layer:
+                stage.SetEditTarget(Usd.EditTarget(relight_layer))
+                messages.append(layer_msg)
             else:
-                fail_count += 1
-                messages.append(f"Unknown action: {action}")
+                messages.append(f"Warning: {layer_msg}, using current edit target")
 
-        except Exception as e:
-            fail_count += 1
-            messages.append(f"Error executing operation: {e}")
+        # 执行所有操作
+        for op in operations:
+            action = op.get("action", "").lower()
+            
+            try:
+                if action == "create":
+                    success, msg, path = create_light(
+                        light_type=op.get("light_type", "SphereLight"),
+                        name=op.get("name", "NewLight"),
+                        parent_path=op.get("parent_path", "/World/Lights"),
+                        transform=op.get("transform"),
+                        attributes=op.get("attributes")
+                    )
+                    if success:
+                        success_count += 1
+                    else:
+                        fail_count += 1
+                    messages.append(msg)
+                
+                elif action == "modify":
+                    success, msg = modify_light(
+                        light_path=op.get("light_path", ""),
+                        transform=op.get("transform"),
+                        attributes=op.get("attributes")
+                    )
+                    if success:
+                        success_count += 1
+                    else:
+                        fail_count += 1
+                    messages.append(msg)
+                
+                elif action == "delete":
+                    success, msg = delete_light(
+                        light_path=op.get("light_path", "")
+                    )
+                    if success:
+                        success_count += 1
+                    else:
+                        fail_count += 1
+                    messages.append(msg)
+                
+                else:
+                    fail_count += 1
+                    messages.append(f"Unknown action: {action}")
+
+            except Exception as e:
+                fail_count += 1
+                messages.append(f"Error executing operation: {e}")
+        
+        # 保存 relight layer
+        if relight_layer:
+            relight_layer.Save()
+            messages.append(f"Relight layer saved: {relight_layer.identifier}")
+                
+    finally:
+        # 恢复原始 edit target
+        if use_relight_layer:
+            stage.SetEditTarget(original_edit_target)
 
     return success_count, fail_count, messages
 

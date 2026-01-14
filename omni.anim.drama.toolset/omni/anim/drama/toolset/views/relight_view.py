@@ -6,8 +6,10 @@ Relight View
 AI Relight view for animation relighting.
 
 Provides UI for:
-    - API configuration
+    - Gemini API configuration (for analysis)
+    - Image Generation API configuration (for relit image generation)
     - Image selection (original/relit)
+    - Relit image generation
     - Analysis control
     - Operation preview and execution
 """
@@ -36,29 +38,48 @@ class RelightView(BaseView):
         super().__init__(viewmodel)
         self._vm: RelightViewModel = viewmodel
 
-        # UI component references
+        # UI component references - Gemini API
         self._api_key_field: Optional[ui.StringField] = None
         self._model_field: Optional[ui.StringField] = None
         self._base_url_field: Optional[ui.StringField] = None
+        self._connection_status_label: Optional[ui.Label] = None
         
+        # UI component references - Image Generation API
+        self._img_api_key_field: Optional[ui.StringField] = None
+        self._img_model_field: Optional[ui.StringField] = None
+        self._img_connection_status_label: Optional[ui.Label] = None
+        
+        # UI component references - Image Generation
+        self._lighting_desc_field: Optional[ui.StringField] = None
+        self._generate_button: Optional[ui.Button] = None
+        
+        # UI component references - Images
         self._original_path_label: Optional[ui.Label] = None
         self._relit_path_label: Optional[ui.Label] = None
         
+        # UI component references - Analysis
         self._analyze_button: Optional[ui.Button] = None
         self._execute_button: Optional[ui.Button] = None
-        
         self._operations_preview: Optional[ui.StringField] = None
         self._reasoning_label: Optional[ui.Label] = None
+        self._custom_prompt_field: Optional[ui.StringField] = None
 
         # Bind ViewModel callbacks
         self._vm.add_images_changed_callback(self._on_images_changed)
         self._vm.add_analysis_complete_callback(self._on_analysis_complete)
+        self._vm.add_connection_status_callback(self._on_connection_status_changed)
+        self._vm.add_img_connection_status_callback(self._on_img_connection_status_changed)
+        self._vm.add_image_generation_callback(self._on_image_generation_complete)
 
     def build(self) -> None:
         """Build UI."""
         with ui.VStack(spacing=Sizes.SPACING_MEDIUM):
-            # API config section
-            self._build_api_config_section()
+            # API config sections in collapsable frames
+            with ui.CollapsableFrame("Gemini API (Analysis)", collapsed=False):
+                self._build_gemini_api_section()
+
+            with ui.CollapsableFrame("Relight Image Generation API", collapsed=True):
+                self._build_img_gen_api_section()
 
             ui.Separator(height=8)
 
@@ -79,13 +100,11 @@ class RelightView(BaseView):
             self._create_log_section(height=100)
 
     # =========================================================================
-    # API Config
+    # Gemini API Config (Analysis)
     # =========================================================================
 
-    def _build_api_config_section(self) -> None:
-        """Build API configuration section."""
-        ui.Label("API Configuration", style=Styles.LABEL_HEADER)
-
+    def _build_gemini_api_section(self) -> None:
+        """Build Gemini API configuration section."""
         with ui.VStack(spacing=Sizes.SPACING_SMALL):
             # API Key
             with ui.HStack(height=26):
@@ -94,7 +113,6 @@ class RelightView(BaseView):
                     password_mode=True,
                     tooltip="Enter Gemini API Key"
                 )
-                # Load saved value
                 if self._vm.saved_api_key:
                     self._api_key_field.model.set_value(self._vm.saved_api_key)
                 self._api_key_field.model.add_value_changed_fn(
@@ -105,7 +123,6 @@ class RelightView(BaseView):
             with ui.HStack(height=26):
                 ui.Label("Model:", width=80)
                 self._model_field = ui.StringField()
-                # Load saved value or default
                 self._model_field.model.set_value(self._vm.saved_model or "gemini-2.0-flash")
                 self._model_field.model.add_value_changed_fn(
                     lambda m: self._vm.set_model(m.get_value_as_string())
@@ -117,21 +134,80 @@ class RelightView(BaseView):
                 self._base_url_field = ui.StringField(
                     tooltip="Optional, for proxy or custom endpoint"
                 )
-                # Load saved value
                 if self._vm.saved_base_url:
                     self._base_url_field.model.set_value(self._vm.saved_base_url)
                 self._base_url_field.model.add_value_changed_fn(
                     lambda m: self._vm.set_base_url(m.get_value_as_string())
                 )
 
-            # Test connection button
+            # Test connection button and status
             with ui.HStack(height=26):
                 ui.Spacer(width=80)
                 ui.Button(
                     "Test Connection",
                     clicked_fn=self._on_test_connection,
                     width=120,
-                    tooltip="Test API connection"
+                    tooltip="Test Gemini API connection"
+                )
+
+            with ui.HStack(height=22):
+                ui.Spacer(width=80)
+                self._connection_status_label = ui.Label(
+                    "",
+                    word_wrap=True,
+                    style={"color": Colors.TEXT_SECONDARY}
+                )
+
+    # =========================================================================
+    # Image Generation API Config
+    # =========================================================================
+
+    def _build_img_gen_api_section(self) -> None:
+        """Build Image Generation API configuration section."""
+        with ui.VStack(spacing=Sizes.SPACING_SMALL):
+            # Provider info
+            ui.Label("Provider: Replicate (ic-light)", style=Styles.LABEL_SECONDARY)
+            
+            # API Key
+            with ui.HStack(height=26):
+                ui.Label("API Key:", width=80)
+                self._img_api_key_field = ui.StringField(
+                    password_mode=True,
+                    tooltip="Enter Replicate API Key"
+                )
+                if self._vm.saved_img_api_key:
+                    self._img_api_key_field.model.set_value(self._vm.saved_img_api_key)
+                self._img_api_key_field.model.add_value_changed_fn(
+                    lambda m: self._vm.set_img_api_key(m.get_value_as_string())
+                )
+
+            # Model selection
+            with ui.HStack(height=26):
+                ui.Label("Model:", width=80)
+                self._img_model_field = ui.StringField(
+                    tooltip="Model name: ic-light, or custom Replicate model ID"
+                )
+                self._img_model_field.model.set_value(self._vm.saved_img_model or "ic-light")
+                self._img_model_field.model.add_value_changed_fn(
+                    lambda m: self._vm.set_img_model(m.get_value_as_string())
+                )
+
+            # Test connection button and status
+            with ui.HStack(height=26):
+                ui.Spacer(width=80)
+                ui.Button(
+                    "Test Connection",
+                    clicked_fn=self._on_test_img_connection,
+                    width=120,
+                    tooltip="Test Replicate API connection"
+                )
+
+            with ui.HStack(height=22):
+                ui.Spacer(width=80)
+                self._img_connection_status_label = ui.Label(
+                    "",
+                    word_wrap=True,
+                    style={"color": Colors.TEXT_SECONDARY}
                 )
 
     # =========================================================================
@@ -165,9 +241,29 @@ class RelightView(BaseView):
                     tooltip="Select original image from file"
                 )
 
-            ui.Spacer(height=8)
+            ui.Separator(height=8)
 
-            # Relit image
+            # Relit image generation section
+            ui.Label("Generate Relit Reference:", style=Styles.LABEL_SECONDARY)
+            
+            self._lighting_desc_field = ui.StringField(
+                multiline=True,
+                height=50,
+                tooltip="Describe the desired lighting effect.\nExample: 'warm sunset lighting from left', 'cool blue rim light', 'dramatic top light with dark shadows'"
+            )
+            self._lighting_desc_field.model.set_value("")
+
+            with ui.HStack(height=30, spacing=4):
+                self._generate_button = ui.Button(
+                    "Generate Relit Image",
+                    clicked_fn=self._on_generate_relit,
+                    style={"background_color": 0xFF6B5B95},
+                    tooltip="Generate relit reference image using AI"
+                )
+
+            ui.Separator(height=8)
+
+            # Relit image (manual selection or generated)
             ui.Label("Relit Target Image:", style=Styles.LABEL_SECONDARY)
             
             with ui.HStack(height=22):
@@ -181,7 +277,7 @@ class RelightView(BaseView):
                 ui.Button(
                     "Select File...",
                     clicked_fn=self._on_select_relit,
-                    tooltip="Select relit target image"
+                    tooltip="Select relit target image from file"
                 )
                 ui.Spacer(width=8)
                 ui.Button(
@@ -199,6 +295,17 @@ class RelightView(BaseView):
         ui.Label("Analysis", style=Styles.LABEL_HEADER)
 
         with ui.VStack(spacing=Sizes.SPACING_SMALL):
+            # Custom prompt for fine-tuning
+            ui.Label("Custom Prompt (Optional):", style=Styles.LABEL_SECONDARY)
+            self._custom_prompt_field = ui.StringField(
+                multiline=True,
+                height=60,
+                tooltip="Add custom instructions to fine-tune the analysis.\nExample: 'Make shadows darker', 'Use warmer colors', 'Focus on rim lighting'"
+            )
+            self._custom_prompt_field.model.set_value("")
+            
+            ui.Spacer(height=4)
+
             # Scene info preview
             with ui.CollapsableFrame("Scene Info Preview", collapsed=True):
                 with ui.VStack():
@@ -273,7 +380,65 @@ class RelightView(BaseView):
 
     def _on_test_connection(self) -> None:
         """Test connection button clicked."""
+        # Show testing status
+        if self._connection_status_label:
+            self._connection_status_label.text = "Testing..."
+            self._connection_status_label.style = {"color": Colors.TEXT_SECONDARY}
         self._vm.test_connection()
+
+    def _on_connection_status_changed(self, success: bool, message: str) -> None:
+        """Connection status changed callback."""
+        if self._connection_status_label:
+            if success:
+                self._connection_status_label.text = f"✓ {message}"
+                self._connection_status_label.style = {"color": 0xFF00AA00}  # Green
+            else:
+                self._connection_status_label.text = f"✗ {message}"
+                self._connection_status_label.style = {"color": 0xFFFF4444}  # Red
+
+    def _on_test_img_connection(self) -> None:
+        """Test Image Gen connection button clicked."""
+        if self._img_connection_status_label:
+            self._img_connection_status_label.text = "Testing..."
+            self._img_connection_status_label.style = {"color": Colors.TEXT_SECONDARY}
+        self._vm.test_img_connection()
+
+    def _on_img_connection_status_changed(self, success: bool, message: str) -> None:
+        """Image Gen connection status changed callback."""
+        if self._img_connection_status_label:
+            if success:
+                self._img_connection_status_label.text = f"✓ {message}"
+                self._img_connection_status_label.style = {"color": 0xFF00AA00}  # Green
+            else:
+                self._img_connection_status_label.text = f"✗ {message}"
+                self._img_connection_status_label.style = {"color": 0xFFFF4444}  # Red
+
+    def _on_generate_relit(self) -> None:
+        """Generate relit image button clicked."""
+        if self._vm.is_generating_image:
+            return
+        
+        # Get lighting description
+        lighting_desc = ""
+        if self._lighting_desc_field:
+            lighting_desc = self._lighting_desc_field.model.get_value_as_string().strip()
+        
+        if not lighting_desc:
+            return
+        
+        # Disable button and show progress
+        if self._generate_button:
+            self._generate_button.enabled = False
+            self._generate_button.text = "Generating..."
+        
+        self._vm.generate_relit_image(lighting_desc)
+
+    def _on_image_generation_complete(self, success: bool, message: str, path: Optional[str]) -> None:
+        """Image generation complete callback."""
+        # Restore generate button
+        if self._generate_button:
+            self._generate_button.enabled = True
+            self._generate_button.text = "Generate Relit Image"
 
     def _on_capture_original(self) -> None:
         """Capture original image button clicked."""
@@ -307,7 +472,12 @@ class RelightView(BaseView):
             self._analyze_button.enabled = False
             self._analyze_button.text = "Analyzing..."
 
-        self._vm.analyze_relight()
+        # Get custom prompt if provided
+        custom_prompt = ""
+        if self._custom_prompt_field:
+            custom_prompt = self._custom_prompt_field.model.get_value_as_string().strip()
+
+        self._vm.analyze_relight(custom_prompt=custom_prompt if custom_prompt else None)
 
     def _on_execute(self) -> None:
         """Execute operations button clicked."""
@@ -437,4 +607,7 @@ class RelightView(BaseView):
         """Cleanup resources."""
         self._vm.remove_images_changed_callback(self._on_images_changed)
         self._vm.remove_analysis_complete_callback(self._on_analysis_complete)
+        self._vm.remove_connection_status_callback(self._on_connection_status_changed)
+        self._vm.remove_img_connection_status_callback(self._on_img_connection_status_changed)
+        self._vm.remove_image_generation_callback(self._on_image_generation_complete)
         super().dispose()

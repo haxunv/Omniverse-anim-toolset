@@ -50,6 +50,10 @@ from .light_control import (
     get_all_lights,
     get_light_info,
     get_lights_summary,
+    # Relight Layer 管理
+    remove_relight_layer,
+    toggle_relight_layer,
+    get_relight_layer_info,
 )
 from .scene_exporter import (
     export_scene_info,
@@ -103,6 +107,9 @@ __all__ = [
     "get_all_lights",
     "get_light_info",
     "get_lights_summary",
+    "remove_relight_layer",
+    "toggle_relight_layer",
+    "get_relight_layer_info",
     # scene_exporter
     "export_scene_info",
     "export_scene_info_for_llm",

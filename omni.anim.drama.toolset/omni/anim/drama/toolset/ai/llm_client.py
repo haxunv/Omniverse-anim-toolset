@@ -125,7 +125,12 @@ class GeminiClient:
 
             # 构建 prompt
             from .prompt_templates import PromptTemplates
-            prompt = custom_prompt or PromptTemplates.get_relight_analysis_prompt(scene_info)
+            if custom_prompt:
+                # 用户提供了自定义提示词，与预制提示词组合
+                prompt = PromptTemplates.get_relight_analysis_prompt_with_custom(scene_info, custom_prompt)
+            else:
+                # 使用纯预制提示词
+                prompt = PromptTemplates.get_relight_analysis_prompt(scene_info)
 
             # 调用 API
             if self._use_sdk:
