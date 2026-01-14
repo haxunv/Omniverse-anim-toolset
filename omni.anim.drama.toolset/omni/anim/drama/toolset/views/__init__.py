@@ -27,6 +27,7 @@ from .curves_width_view import CurvesWidthView
 from .uv_transfer_view import UVTransferView
 from .light_link_view import LightLinkView
 from .relight_view import RelightView
+from .render_setup_view import RenderSetupView
 from .main_window import MainWindow
 
 __all__ = [
@@ -37,5 +38,6 @@ __all__ = [
     "UVTransferView",
     "LightLinkView",
     "RelightView",
+    "RenderSetupView",
     "MainWindow",
 ]

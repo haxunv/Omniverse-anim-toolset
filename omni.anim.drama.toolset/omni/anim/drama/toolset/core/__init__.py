@@ -12,6 +12,7 @@ Core Module - 核心业务逻辑层
     - light_control: 灯光创建/修改核心逻辑
     - scene_exporter: 场景信息导出
     - render_capture: 渲染图采集
+    - render_setup: Maya-like render setup (layers, collections, overrides)
 """
 
 from .stage_utils import (
@@ -60,6 +61,16 @@ from .render_capture import (
     capture_viewport,
     read_image_as_base64,
 )
+from .render_setup import (
+    RenderSetupManager,
+    get_render_setup_manager,
+    reset_render_setup_manager,
+    RenderLayer,
+    Collection,
+    Override,
+    FilterType,
+    OverrideType,
+)
 
 __all__ = [
     # stage_utils
@@ -100,4 +111,13 @@ __all__ = [
     # render_capture
     "capture_viewport",
     "read_image_as_base64",
+    # render_setup
+    "RenderSetupManager",
+    "get_render_setup_manager",
+    "reset_render_setup_manager",
+    "RenderLayer",
+    "Collection",
+    "Override",
+    "FilterType",
+    "OverrideType",
 ]
