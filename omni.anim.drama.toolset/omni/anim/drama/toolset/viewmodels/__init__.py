@@ -25,6 +25,7 @@ from .uv_transfer_vm import UVTransferViewModel
 from .light_link_vm import LightLinkViewModel
 from .relight_vm import RelightViewModel
 from .render_setup_vm import RenderSetupViewModel
+from .exr_merge_vm import ExrMergeViewModel
 
 __all__ = [
     "BaseViewModel",
@@ -34,4 +35,5 @@ __all__ = [
     "LightLinkViewModel",
     "RelightViewModel",
     "RenderSetupViewModel",
+    "ExrMergeViewModel",
 ]

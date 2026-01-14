@@ -13,6 +13,7 @@ Core Module - 核心业务逻辑层
     - scene_exporter: 场景信息导出
     - render_capture: 渲染图采集
     - render_setup: Maya-like render setup (layers, collections, overrides)
+    - exr_merge: EXR AOV 自动合并
 """
 
 from .stage_utils import (
@@ -75,6 +76,7 @@ from .render_setup import (
     FilterType,
     OverrideType,
 )
+from . import exr_merge
 
 __all__ = [
     # stage_utils
@@ -127,4 +129,6 @@ __all__ = [
     "Override",
     "FilterType",
     "OverrideType",
+    # exr_merge
+    "exr_merge",
 ]

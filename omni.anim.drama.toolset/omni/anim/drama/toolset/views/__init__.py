@@ -28,6 +28,7 @@ from .uv_transfer_view import UVTransferView
 from .light_link_view import LightLinkView
 from .relight_view import RelightView
 from .render_setup_view import RenderSetupView
+from .exr_merge_view import ExrMergeView
 from .main_window import MainWindow
 
 __all__ = [
@@ -39,5 +40,6 @@ __all__ = [
     "LightLinkView",
     "RelightView",
     "RenderSetupView",
+    "ExrMergeView",
     "MainWindow",
 ]

@@ -16,6 +16,7 @@ from .uv_transfer_view import UVTransferView
 from .light_link_view import LightLinkView
 from .relight_view import RelightView
 from .render_setup_view import RenderSetupView
+from .exr_merge_view import ExrMergeView
 from ..viewmodels import (
     LoadManagerViewModel,
     CurvesWidthViewModel,
@@ -23,6 +24,7 @@ from ..viewmodels import (
     LightLinkViewModel,
     RelightViewModel,
     RenderSetupViewModel,
+    ExrMergeViewModel,
 )
 
 
@@ -46,6 +48,7 @@ class MainWindow:
         self._light_link_vm: Optional[LightLinkViewModel] = None
         self._relight_vm: Optional[RelightViewModel] = None
         self._render_setup_vm: Optional[RenderSetupViewModel] = None
+        self._exr_merge_vm: Optional[ExrMergeViewModel] = None
 
         # Views
         self._load_manager_view: Optional[LoadManagerView] = None
@@ -54,6 +57,7 @@ class MainWindow:
         self._light_link_view: Optional[LightLinkView] = None
         self._relight_view: Optional[RelightView] = None
         self._render_setup_view: Optional[RenderSetupView] = None
+        self._exr_merge_view: Optional[ExrMergeView] = None
 
         # 当前激活的标签索引
         self._current_tab = 0
@@ -83,6 +87,7 @@ class MainWindow:
         self._light_link_vm = LightLinkViewModel()
         self._relight_vm = RelightViewModel()
         self._render_setup_vm = RenderSetupViewModel()
+        self._exr_merge_vm = ExrMergeViewModel()
 
         # 构建 UI
         with self._window.frame:
@@ -129,6 +134,12 @@ class MainWindow:
                         clicked_fn=lambda: self._switch_tab(4),
                     )
                     self._tab_buttons.append(btn6)
+
+                    btn7 = ui.Button(
+                        "EXR Merge",
+                        clicked_fn=lambda: self._switch_tab(5),
+                    )
+                    self._tab_buttons.append(btn7)
 
                 ui.Separator(height=2)
 
@@ -229,6 +240,23 @@ class MainWindow:
                             self._render_setup_view.build()
                     self._tab_frames.append(self._frame6)
 
+                    # EXR Merge 内容
+                    self._frame7 = ui.Frame(visible=False)
+                    with self._frame7:
+                        with ui.ScrollingFrame(
+                            horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_OFF,
+                            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED
+                        ):
+                            with ui.VStack(
+                                margin=Sizes.MARGIN_MEDIUM,
+                                spacing=Sizes.SPACING_MEDIUM
+                            ):
+                                self._exr_merge_view = ExrMergeView(
+                                    self._exr_merge_vm
+                                )
+                                self._exr_merge_view.build()
+                    self._tab_frames.append(self._frame7)
+
     def _switch_tab(self, index: int) -> None:
         """切换标签页。"""
         self._current_tab = index
@@ -314,6 +342,10 @@ class MainWindow:
             self._render_setup_view.dispose()
             self._render_setup_view = None
 
+        if self._exr_merge_view:
+            self._exr_merge_view.dispose()
+            self._exr_merge_view = None
+
         # 清理 ViewModels
         if self._load_manager_vm:
             self._load_manager_vm.dispose()
@@ -338,6 +370,10 @@ class MainWindow:
         if self._render_setup_vm:
             self._render_setup_vm.dispose()
             self._render_setup_vm = None
+
+        if self._exr_merge_vm:
+            self._exr_merge_vm.dispose()
+            self._exr_merge_vm = None
 
         # 清理窗口
         if self._window:
