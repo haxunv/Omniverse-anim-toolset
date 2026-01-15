@@ -320,3 +320,4 @@ class RelightImageClient:
         """清理资源。"""
         pass
 
+

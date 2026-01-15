@@ -214,3 +214,4 @@ class ExrMergeViewModel(BaseViewModel):
         self._scanned_frames.clear()
         self._scanned_aovs.clear()
 
+
