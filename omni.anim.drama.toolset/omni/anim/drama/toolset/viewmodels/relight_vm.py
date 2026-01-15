@@ -40,6 +40,7 @@ SETTINGS_BASE_URL = SETTINGS_PREFIX + "base_url"
 SETTINGS_IMG_API_KEY = SETTINGS_PREFIX + "img_api_key"
 SETTINGS_IMG_MODEL = SETTINGS_PREFIX + "img_model"
 SETTINGS_IMG_PROVIDER = SETTINGS_PREFIX + "img_provider"
+SETTINGS_IMG_BASE_URL = SETTINGS_PREFIX + "img_base_url"
 
 
 class RelightViewModel(BaseViewModel):
@@ -72,8 +73,9 @@ class RelightViewModel(BaseViewModel):
         
         # Configuration - Image Generation
         self._img_api_key: str = ""
-        self._img_model: str = "ic-light"
-        self._img_provider: str = "replicate"
+        self._img_model: str = "gemini-3-pro-image-preview"
+        self._img_provider: str = "gptsapi"  # Default to GPTSapi
+        self._img_base_url: str = ""
         
         # State
         self._is_analyzing: bool = False
@@ -158,6 +160,16 @@ class RelightViewModel(BaseViewModel):
         if save:
             self._save_settings()
 
+    def set_img_base_url(self, base_url: str, save: bool = False) -> None:
+        """Set Image Generation API URL."""
+        self._img_base_url = base_url
+        if self._relight_image_client:
+            self._relight_image_client.set_base_url(base_url)
+        if base_url:
+            self.log(f"Image Gen API URL set: {base_url}")
+        if save:
+            self._save_settings()
+
     @property
     def saved_img_api_key(self) -> str:
         """Get saved Image Gen API key."""
@@ -174,6 +186,11 @@ class RelightViewModel(BaseViewModel):
         return self._img_provider
 
     @property
+    def saved_img_base_url(self) -> str:
+        """Get saved Image Gen API URL."""
+        return self._img_base_url
+
+    @property
     def is_img_configured(self) -> bool:
         """Check if Image Generation API is configured."""
         return bool(self._img_api_key)
@@ -188,7 +205,8 @@ class RelightViewModel(BaseViewModel):
             self._relight_image_client = RelightImageClient(
                 provider=provider,
                 api_key=self._img_api_key,
-                model=self._img_model
+                model=self._img_model,
+                base_url=self._img_base_url if self._img_base_url else None
             )
         return self._relight_image_client
 
@@ -259,6 +277,11 @@ class RelightViewModel(BaseViewModel):
             if img_provider:
                 self._img_provider = img_provider
 
+            # Load Image Gen base URL
+            img_base_url = settings.get(SETTINGS_IMG_BASE_URL)
+            if img_base_url:
+                self._img_base_url = img_base_url
+
             if self._api_key or self._img_api_key:
                 self.log("Loaded saved API configuration")
 
@@ -289,6 +312,9 @@ class RelightViewModel(BaseViewModel):
             
             # Save Image Gen provider
             settings.set(SETTINGS_IMG_PROVIDER, self._img_provider)
+            
+            # Save Image Gen base URL
+            settings.set(SETTINGS_IMG_BASE_URL, self._img_base_url)
 
             self.log("API configuration saved")
 

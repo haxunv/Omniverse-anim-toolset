@@ -47,6 +47,7 @@ class RelightView(BaseView):
         # UI component references - Image Generation API
         self._img_api_key_field: Optional[ui.StringField] = None
         self._img_model_field: Optional[ui.StringField] = None
+        self._img_base_url_field: Optional[ui.StringField] = None
         self._img_connection_status_label: Optional[ui.Label] = None
         
         # UI component references - Image Generation
@@ -165,15 +166,15 @@ class RelightView(BaseView):
     def _build_img_gen_api_section(self) -> None:
         """Build Image Generation API configuration section."""
         with ui.VStack(spacing=Sizes.SPACING_SMALL):
-            # Provider info
-            ui.Label("Provider: Replicate (ic-light)", style=Styles.LABEL_SECONDARY)
+            # Info label
+            ui.Label("Use same API Key as above, or enter a different one", style=Styles.LABEL_SECONDARY)
             
             # API Key
             with ui.HStack(height=26):
                 ui.Label("API Key:", width=80)
                 self._img_api_key_field = ui.StringField(
                     password_mode=True,
-                    tooltip="Enter Replicate API Key"
+                    tooltip="Enter API Key (GPTSapi or Gemini)"
                 )
                 if self._vm.saved_img_api_key:
                     self._img_api_key_field.model.set_value(self._vm.saved_img_api_key)
@@ -185,11 +186,23 @@ class RelightView(BaseView):
             with ui.HStack(height=26):
                 ui.Label("Model:", width=80)
                 self._img_model_field = ui.StringField(
-                    tooltip="Model name: ic-light, or custom Replicate model ID"
+                    tooltip="e.g. gemini-3-pro-image-preview"
                 )
-                self._img_model_field.model.set_value(self._vm.saved_img_model or "ic-light")
+                self._img_model_field.model.set_value(self._vm.saved_img_model or "gemini-3-pro-image-preview")
                 self._img_model_field.model.add_value_changed_fn(
                     lambda m: self._vm.set_img_model(m.get_value_as_string())
+                )
+
+            # Custom API URL (optional)
+            with ui.HStack(height=26):
+                ui.Label("API URL:", width=80)
+                self._img_base_url_field = ui.StringField(
+                    tooltip="Default: https://api.gptsapi.net"
+                )
+                if self._vm.saved_img_base_url:
+                    self._img_base_url_field.model.set_value(self._vm.saved_img_base_url)
+                self._img_base_url_field.model.add_value_changed_fn(
+                    lambda m: self._vm.set_img_base_url(m.get_value_as_string())
                 )
 
             # Test connection button and status
@@ -199,7 +212,7 @@ class RelightView(BaseView):
                     "Test Connection",
                     clicked_fn=self._on_test_img_connection,
                     width=120,
-                    tooltip="Test Replicate API connection"
+                    tooltip="Test API connection"
                 )
 
             with ui.HStack(height=22):
