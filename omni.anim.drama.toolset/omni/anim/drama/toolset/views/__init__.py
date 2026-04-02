@@ -3,43 +3,9 @@
 Views Module - 视图层 (View Layer)
 ==================================
 
-本模块包含所有 UI 视图组件。
-视图层负责：
-    - 构建用户界面
-    - 处理用户交互
-    - 绑定 ViewModel 数据
+请从子模块按需导入，例如：
+``from omni.anim.drama.toolset.views.main_window import MainWindow``
 
-模块结构:
-    - styles: 统一的样式定义
-    - base_view: View 基类
-    - load_manager_view: 角色加载管理视图
-    - curves_width_view: 曲线宽度调整视图
-    - uv_transfer_view: UV 传输视图
-    - light_link_view: 灯光链接视图
-    - relight_view: 动画重打光视图
-    - main_window: 主窗口（标签页容器）
+勿在 ``__init__`` 中导入全部视图，否则 ``import ...views.main_window`` 仍会先执行本文件
+并间接加载所有标签页相关代码。
 """
-
-from .styles import Styles
-from .base_view import BaseView
-from .load_manager_view import LoadManagerView
-from .curves_width_view import CurvesWidthView
-from .uv_transfer_view import UVTransferView
-from .light_link_view import LightLinkView
-from .relight_view import RelightView
-from .render_setup_view import RenderSetupView
-from .exr_merge_view import ExrMergeView
-from .main_window import MainWindow
-
-__all__ = [
-    "Styles",
-    "BaseView",
-    "LoadManagerView",
-    "CurvesWidthView",
-    "UVTransferView",
-    "LightLinkView",
-    "RelightView",
-    "RenderSetupView",
-    "ExrMergeView",
-    "MainWindow",
-]

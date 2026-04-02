@@ -17,15 +17,13 @@ from .light_link_view import LightLinkView
 from .relight_view import RelightView
 from .render_setup_view import RenderSetupView
 from .exr_merge_view import ExrMergeView
-from ..viewmodels import (
-    LoadManagerViewModel,
-    CurvesWidthViewModel,
-    UVTransferViewModel,
-    LightLinkViewModel,
-    RelightViewModel,
-    RenderSetupViewModel,
-    ExrMergeViewModel,
-)
+from ..viewmodels.load_manager_vm import LoadManagerViewModel
+from ..viewmodels.curves_width_vm import CurvesWidthViewModel
+from ..viewmodels.uv_transfer_vm import UVTransferViewModel
+from ..viewmodels.light_link_vm import LightLinkViewModel
+from ..viewmodels.relight_vm import RelightViewModel
+from ..viewmodels.render_setup_vm import RenderSetupViewModel
+from ..viewmodels.exr_merge_vm import ExrMergeViewModel
 
 
 # 窗口标题
