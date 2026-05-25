@@ -11,11 +11,18 @@ description = """
 - UV Transfer: UV 数据传输，支持重定位安全输出
 - Light Link: 灯光链接管理，精确控制灯光照射范围
 - AI Relight: AI辅助动画重打光，通过多模态大模型分析并生成灯光调整
+- anime agent: 类 ChatUSD 的侧栏对话 Agent，支持 Kimi K2.6 / Gemini / OpenAI 兼容后端，
+  用自然语言调用上述工具（Tool Use / Function Calling），带审批卡片与安全门控
 """
 category = "Animation"
 changelog = "docs/CHANGELOG.md"
 icon = "data/icon.png"
-keywords = ["animation", "curves", "uv", "load", "toolset", "drama", "light", "lighting", "relight", "ai", "gemini"]
+keywords = [
+    "animation", "curves", "uv", "load", "toolset", "drama",
+    "light", "lighting", "relight",
+    "ai", "gemini", "kimi", "siliconflow",
+    "agent", "anime-agent", "chatusd", "tool-use",
+]
 preview_image = "data/preview.png"
 readme = "docs/README.md"
 repository = "https://github.com/bilibili/omniverse-anim-drama-toolset"
@@ -36,6 +43,74 @@ authors = ["Bilibili Animation Team"]
 [settings]
 # 窗口默认显示设置
 exts."omni.anim.drama.toolset".window.visible = true
+
+# Agent loop 最大迭代轮数。一轮 = 一次 LLM 调用 + 它要求的所有工具执行。
+# 太小（< 10）会让多步 pipeline（参考图 -> 搜资产 x N -> 摆放 x N -> 相机 -> 灯）跑不完；
+# 太大会在 LLM 跑飞时浪费 token。默认 30，硬上限 200。
+exts."omni.anim.drama.toolset".agent.max_iterations = 30
+
+# Agent context budget guardrails.
+# Tool outputs like inspect_prim / search results can be very large. These caps
+# keep old tool messages and tool-call arguments from being resent in full every
+# LLM turn. Set higher only when using a genuinely larger single-request context.
+exts."omni.anim.drama.toolset".agent.context.max_history_messages = 30
+exts."omni.anim.drama.toolset".agent.context.max_tool_result_chars = 12000
+exts."omni.anim.drama.toolset".agent.context.max_assistant_message_chars = 12000
+exts."omni.anim.drama.toolset".agent.context.max_user_message_chars = 20000
+exts."omni.anim.drama.toolset".agent.context.max_string_chars = 2000
+exts."omni.anim.drama.toolset".agent.context.max_list_items = 20
+exts."omni.anim.drama.toolset".agent.context.max_dict_items = 80
+exts."omni.anim.drama.toolset".agent.context.max_json_depth = 6
+exts."omni.anim.drama.toolset".agent.context.max_argument_string_chars = 1000
+exts."omni.anim.drama.toolset".agent.context.max_argument_list_items = 10
+exts."omni.anim.drama.toolset".agent.context.max_argument_dict_items = 40
+exts."omni.anim.drama.toolset".agent.context.max_argument_depth = 4
+
+# 外部 MCP 桥接（opt-in；默认关闭，避免对未跑 MCP server 的用户报错）
+# 启用方法：把 enable 改成 true，并确保 url 指向已运行的 MCP server。
+# 例：NVIDIA Kit MCP Server 默认监听 http://localhost:9902/mcp
+exts."omni.anim.drama.toolset".agent.mcp.kit.enable = false
+exts."omni.anim.drama.toolset".agent.mcp.kit.url    = "http://localhost:9902/mcp"
+exts."omni.anim.drama.toolset".agent.mcp.kit.prefix = "kit_mcp__"
+exts."omni.anim.drama.toolset".agent.mcp.kit.timeout = 30.0
+
+# USD Search 资产检索（ChatUSD-like，可选）
+# search_path 是本地目录时（如 E:\\usd\\my_library），自动走文件系统扫描，
+#   不需要 api_key、不联网。匹配按文件名 / 父目录名分词打分。
+# search_path 是 omniverse:// / https:// / s3:// 等远端 URL（或为空）时，
+#   走 USD Search HTTP API；此时 api_key 必填，可写在下方或读
+#   USDSEARCH_API_KEY / NVIDIA_API_KEY 环境变量。
+exts."omni.anim.drama.toolset".agent.usd_search.host_url = "https://ai.api.nvidia.com/v1/omniverse/nvidia/usdsearch"
+exts."omni.anim.drama.toolset".agent.usd_search.api_key = ""
+exts."omni.anim.drama.toolset".agent.usd_search.username = ""
+# 改成你自己的资产库路径（本地目录 = 离线模式，无需 api_key）。
+exts."omni.anim.drama.toolset".agent.usd_search.search_path = "E:\\usd\\ppty_mod"
+
+# Vision LLM (describe_reference_image)
+# provider: auto | gemini | openai_compat | nvidia_nim
+#
+# "auto" (默认): 复用你在 Anime Agent Settings 里配的 chat backend (api_key + base_url +
+#   model). 多模态聊天模型 (Kimi K2.6 / GPT-4o / Gemini-2.0) 直接当 vision 用，不需
+#   要再单独配一把 key.
+#
+# 其他值: 显式覆盖，跟 chat 拆开. api_key 为空时按 provider 依次回退
+#   VISION_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY / NVIDIA_API_KEY 环境变量.
+#
+# 单独覆盖 model / base_url / api_key 任何一项时也会优先生效（即使 provider=auto），
+# 例如想 chat 用 Kimi K2.6、vision 单独用 Gemini-2.0-flash，只填 vision.model 就行.
+exts."omni.anim.drama.toolset".agent.vision.provider = "auto"
+exts."omni.anim.drama.toolset".agent.vision.model = ""
+exts."omni.anim.drama.toolset".agent.vision.base_url = ""
+exts."omni.anim.drama.toolset".agent.vision.api_key = ""
+exts."omni.anim.drama.toolset".agent.vision.timeout = 90
+
+# Layout solver (propose_layout)
+# spacing_factor: 主体之间最小间距系数（相对各自半径之和）
+# default_stage_radius: 当前 stage 还没几何时的兜底半径，单位 cm（OV 默认）
+# up_axis: auto / Y / Z；auto 时按 stage 实际 UpAxis 决定
+exts."omni.anim.drama.toolset".agent.layout.spacing_factor = 1.2
+exts."omni.anim.drama.toolset".agent.layout.default_stage_radius = 500.0
+exts."omni.anim.drama.toolset".agent.layout.up_axis = "auto"
 
 
 [[python.module]]

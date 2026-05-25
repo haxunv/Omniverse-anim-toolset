@@ -591,9 +591,13 @@ def execute_light_operations(
 # 查询函数
 # =============================================================================
 
-def get_all_lights() -> List[Dict]:
+def get_all_lights(include_defaults: bool = False) -> List[Dict]:
     """
     获取场景中所有灯光的信息。
+
+    Args:
+        include_defaults: 若为 True，返回 effective value（含未显式 author 的默认值）；
+            若为 False（默认），仅返回显式 author 过的属性，向后兼容旧行为。
 
     Returns:
         List[Dict]: 灯光信息列表
@@ -603,20 +607,33 @@ def get_all_lights() -> List[Dict]:
         return []
 
     lights = []
-    
+
     for prim in stage.Traverse():
         if is_light_prim(prim):
-            lights.append(get_light_info(str(prim.GetPath())))
+            lights.append(
+                get_light_info(str(prim.GetPath()), include_defaults=include_defaults)
+            )
 
     return lights
 
 
-def get_light_info(light_path: str) -> Dict:
+def get_light_info(light_path: str, include_defaults: bool = False) -> Dict:
     """
     获取灯光的详细信息。
 
+    兼容多个 UsdLux schema 版本：
+        - USD < 21.11 使用无前缀的 ``color`` / ``intensity`` 等
+        - USD >= 21.11 使用带 ``inputs:`` 前缀的 ``inputs:color`` 等
+
+    读取策略：对每个逻辑键，按候选属性名顺序查找；优先返回**显式 author** 的那个，
+    其次返回有非 None 值的那个，最后回退到 schema fallback（仅当 ``include_defaults=True``）。
+
     Args:
         light_path: 灯光的 USD 路径
+        include_defaults: 若为 True，则即使属性未显式 author 也返回当前 effective value
+            （USD 默认值），并附带 ``_<key>_authored`` 布尔字段说明该值是否被显式写入，
+            ``_<key>_attr`` 字段说明实际命中的 attribute 名（用于调试）。
+            默认 False 保持向后兼容。
 
     Returns:
         Dict: 灯光信息字典
@@ -642,37 +659,77 @@ def get_light_info(light_path: str) -> Dict:
         # 获取变换信息
         xform = UsdGeom.Xformable(prim)
         world_transform = xform.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-        
-        # 提取位移
         translation = world_transform.ExtractTranslation()
         info["transform"]["translate"] = [translation[0], translation[1], translation[2]]
 
-        # 获取常用属性
-        attr_names = [
-            ("inputs:intensity", "intensity"),
-            ("inputs:color", "color"),
-            ("inputs:colorTemperature", "temperature"),
-            ("inputs:exposure", "exposure"),
-            ("inputs:radius", "radius"),
-            ("inputs:width", "width"),
-            ("inputs:height", "height"),
-            ("inputs:angle", "angle"),
-            ("inputs:length", "length"),
+        # 逻辑键 -> 候选 attribute 名（按优先级）
+        attr_specs = [
+            ("intensity",          ["inputs:intensity",          "intensity"]),
+            ("color",              ["inputs:color",              "color"]),
+            ("temperature",        ["inputs:colorTemperature",   "colorTemperature"]),
+            ("exposure",           ["inputs:exposure",           "exposure"]),
+            ("enable_temperature", ["inputs:enableColorTemperature", "enableColorTemperature"]),
+            ("radius",             ["inputs:radius",             "radius"]),
+            ("width",              ["inputs:width",              "width"]),
+            ("height",             ["inputs:height",             "height"]),
+            ("angle",              ["inputs:angle",              "angle"]),
+            ("length",             ["inputs:length",             "length"]),
         ]
 
-        for attr_name, key in attr_names:
-            attr = prim.GetAttribute(attr_name)
-            if attr and attr.HasAuthoredValue():
-                value = attr.Get()
-                if hasattr(value, '__iter__') and not isinstance(value, str):
-                    info["attributes"][key] = list(value)
-                else:
-                    info["attributes"][key] = value
+        for key, candidates in attr_specs:
+            picked = _pick_best_attr(prim, candidates)
+            if picked is None:
+                continue
+            attr_name, value, authored = picked
+            if not authored and not include_defaults:
+                continue
+            if hasattr(value, '__iter__') and not isinstance(value, str):
+                info["attributes"][key] = [
+                    float(x) if isinstance(x, (int, float)) else x for x in value
+                ]
+            else:
+                info["attributes"][key] = (
+                    float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else value
+                )
+            if include_defaults:
+                info["attributes"][f"_{key}_authored"] = bool(authored)
+                info["attributes"][f"_{key}_attr"] = attr_name
 
     except Exception as e:
         info["error"] = str(e)
 
     return info
+
+
+def _pick_best_attr(prim: Usd.Prim, candidate_names: List[str]):
+    """
+    在候选 attribute 名字里选最合适的一个。
+
+    优先级：
+        1) 已 author 且 Get() 非 None 的属性（最可靠）
+        2) 未 author 但 Get() 非 None 的属性（schema fallback / 默认值）
+        3) None（找不到）
+
+    Returns:
+        Optional[Tuple[str, Any, bool]]: (attr_name, value, authored) 或 None
+    """
+    fallback = None
+    for name in candidate_names:
+        attr = prim.GetAttribute(name)
+        if not attr:
+            continue
+        try:
+            value = attr.Get()
+        except Exception:
+            continue
+        authored = bool(attr.HasAuthoredValue())
+        if value is None:
+            continue
+        if authored:
+            return name, value, True
+        if fallback is None:
+            fallback = (name, value, False)
+    return fallback
 
 
 def get_lights_summary() -> str:

@@ -3,13 +3,13 @@
 主窗口
 ======
 
-创建包含所有工具的主窗口。
+包含 7 个 Tab：原有 6 个工具 Tab + 新增的 AI Copilot Tab。
 """
 
 from typing import Optional, Callable
 import omni.ui as ui
 
-from .styles import Sizes
+from .styles import Colors, Sizes
 from .load_manager_view import LoadManagerView
 from .curves_width_view import CurvesWidthView
 from .uv_transfer_view import UVTransferView
@@ -17,6 +17,7 @@ from .light_link_view import LightLinkView
 from .relight_view import RelightView
 from .render_setup_view import RenderSetupView
 from .exr_merge_view import ExrMergeView
+from .copilot_panel import CopilotPanel
 from ..viewmodels.load_manager_vm import LoadManagerViewModel
 from ..viewmodels.curves_width_vm import CurvesWidthViewModel
 from ..viewmodels.uv_transfer_vm import UVTransferViewModel
@@ -24,6 +25,7 @@ from ..viewmodels.light_link_vm import LightLinkViewModel
 from ..viewmodels.relight_vm import RelightViewModel
 from ..viewmodels.render_setup_vm import RenderSetupViewModel
 from ..viewmodels.exr_merge_vm import ExrMergeViewModel
+from ..viewmodels.copilot_vm import CopilotViewModel
 
 
 # 窗口标题
@@ -47,6 +49,7 @@ class MainWindow:
         self._relight_vm: Optional[RelightViewModel] = None
         self._render_setup_vm: Optional[RenderSetupViewModel] = None
         self._exr_merge_vm: Optional[ExrMergeViewModel] = None
+        self._copilot_vm: Optional[CopilotViewModel] = None
 
         # Views
         self._load_manager_view: Optional[LoadManagerView] = None
@@ -56,19 +59,25 @@ class MainWindow:
         self._relight_view: Optional[RelightView] = None
         self._render_setup_view: Optional[RenderSetupView] = None
         self._exr_merge_view: Optional[ExrMergeView] = None
+        self._copilot_panel: Optional[CopilotPanel] = None
 
         # 当前激活的标签索引
         self._current_tab = 0
         self._tab_frames = []
+        self._tab_buttons = []
 
         # 可见性变化回调
         self._visibility_changed_fn: Optional[Callable[[bool], None]] = None
 
         self._build()
 
+    # =========================================================================
+    # 构建主窗口
+    # =========================================================================
+
     def _build(self) -> None:
         """构建主窗口。"""
-        # 创建窗口
+        # 创建窗口（恢复原始默认尺寸）
         self._window = ui.Window(
             WINDOW_TITLE,
             width=Sizes.WINDOW_WIDTH,
@@ -86,26 +95,17 @@ class MainWindow:
         self._relight_vm = RelightViewModel()
         self._render_setup_vm = RenderSetupViewModel()
         self._exr_merge_vm = ExrMergeViewModel()
+        self._copilot_vm = CopilotViewModel()
 
         # 构建 UI
         with self._window.frame:
             with ui.VStack(spacing=4):
                 # 标签按钮行
                 with ui.HStack(height=30):
-                    self._tab_buttons = []
-
-                    # [暂时隐藏] Load Manager 标签页
-                    # btn1 = ui.Button(
-                    #     "Load Manager",
-                    #     clicked_fn=lambda: self._switch_tab(0),
-                    #     style={"background_color": 0xFF3A8EBA}
-                    # )
-                    # self._tab_buttons.append(btn1)
-
                     btn2 = ui.Button(
                         "Curves Width",
                         clicked_fn=lambda: self._switch_tab(0),
-                        style={"background_color": 0xFF3A8EBA}
+                        style={"background_color": 0xFF3A8EBA},
                     )
                     self._tab_buttons.append(btn2)
 
@@ -139,37 +139,26 @@ class MainWindow:
                     )
                     self._tab_buttons.append(btn7)
 
+                    btn8 = ui.Button(
+                        "Anime Agent",
+                        clicked_fn=lambda: self._switch_tab(6),
+                    )
+                    self._tab_buttons.append(btn8)
+
                 ui.Separator(height=2)
 
                 # 内容区域使用 ZStack 叠加
                 with ui.ZStack():
-                    # [暂时隐藏] Load Manager 内容
-                    # self._frame1 = ui.Frame(visible=True)
-                    # with self._frame1:
-                    #     with ui.ScrollingFrame(
-                    #         horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_OFF,
-                    #         vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED
-                    #     ):
-                    #         with ui.VStack(
-                    #             margin=Sizes.MARGIN_MEDIUM,
-                    #             spacing=Sizes.SPACING_MEDIUM
-                    #         ):
-                    #             self._load_manager_view = LoadManagerView(
-                    #                 self._load_manager_vm
-                    #             )
-                    #             self._load_manager_view.build()
-                    # self._tab_frames.append(self._frame1)
-
                     # Curves Width 内容
                     self._frame2 = ui.Frame(visible=True)
                     with self._frame2:
                         with ui.ScrollingFrame(
                             horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_OFF,
-                            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED
+                            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
                         ):
                             with ui.VStack(
                                 margin=Sizes.MARGIN_MEDIUM,
-                                spacing=Sizes.SPACING_MEDIUM
+                                spacing=Sizes.SPACING_MEDIUM,
                             ):
                                 self._curves_width_view = CurvesWidthView(
                                     self._curves_width_vm
@@ -182,11 +171,11 @@ class MainWindow:
                     with self._frame3:
                         with ui.ScrollingFrame(
                             horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_OFF,
-                            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED
+                            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
                         ):
                             with ui.VStack(
                                 margin=Sizes.MARGIN_MEDIUM,
-                                spacing=Sizes.SPACING_MEDIUM
+                                spacing=Sizes.SPACING_MEDIUM,
                             ):
                                 self._uv_transfer_view = UVTransferView(
                                     self._uv_transfer_vm
@@ -199,11 +188,11 @@ class MainWindow:
                     with self._frame4:
                         with ui.ScrollingFrame(
                             horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_OFF,
-                            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED
+                            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
                         ):
                             with ui.VStack(
                                 margin=Sizes.MARGIN_MEDIUM,
-                                spacing=Sizes.SPACING_MEDIUM
+                                spacing=Sizes.SPACING_MEDIUM,
                             ):
                                 self._light_link_view = LightLinkView(
                                     self._light_link_vm
@@ -216,11 +205,11 @@ class MainWindow:
                     with self._frame5:
                         with ui.ScrollingFrame(
                             horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_OFF,
-                            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED
+                            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
                         ):
                             with ui.VStack(
                                 margin=Sizes.MARGIN_MEDIUM,
-                                spacing=Sizes.SPACING_MEDIUM
+                                spacing=Sizes.SPACING_MEDIUM,
                             ):
                                 self._relight_view = RelightView(
                                     self._relight_vm
@@ -243,17 +232,28 @@ class MainWindow:
                     with self._frame7:
                         with ui.ScrollingFrame(
                             horizontal_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_ALWAYS_OFF,
-                            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED
+                            vertical_scrollbar_policy=ui.ScrollBarPolicy.SCROLLBAR_AS_NEEDED,
                         ):
                             with ui.VStack(
                                 margin=Sizes.MARGIN_MEDIUM,
-                                spacing=Sizes.SPACING_MEDIUM
+                                spacing=Sizes.SPACING_MEDIUM,
                             ):
                                 self._exr_merge_view = ExrMergeView(
                                     self._exr_merge_vm
                                 )
                                 self._exr_merge_view.build()
                     self._tab_frames.append(self._frame7)
+
+                    # AI Copilot 内容
+                    self._frame8 = ui.Frame(visible=False)
+                    with self._frame8:
+                        self._copilot_panel = CopilotPanel(self._copilot_vm)
+                        self._copilot_panel.build()
+                    self._tab_frames.append(self._frame8)
+
+    # =========================================================================
+    # 事件
+    # =========================================================================
 
     def _switch_tab(self, index: int) -> None:
         """切换标签页。"""
@@ -344,6 +344,13 @@ class MainWindow:
             self._exr_merge_view.dispose()
             self._exr_merge_view = None
 
+        if self._copilot_panel:
+            try:
+                self._copilot_panel.dispose()
+            except Exception:
+                pass
+            self._copilot_panel = None
+
         # 清理 ViewModels
         if self._load_manager_vm:
             self._load_manager_vm.dispose()
@@ -372,6 +379,13 @@ class MainWindow:
         if self._exr_merge_vm:
             self._exr_merge_vm.dispose()
             self._exr_merge_vm = None
+
+        if self._copilot_vm:
+            try:
+                self._copilot_vm.dispose()
+            except Exception:
+                pass
+            self._copilot_vm = None
 
         # 清理窗口
         if self._window:
